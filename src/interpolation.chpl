@@ -13,11 +13,13 @@ prototype module Interpolation
   // Define type for the interpolation structure. Add "?" to allow default initialization to nil.
   type interpolation_coefficients_t = unmanaged interpolation_coefficients_c?;
 
-  // Perhaps it might be useful in the future to have a sparse domain with the cell topologies present in the mesh
+  // Domains
   var sp2fpInterp_d : domain(2*int);
-  //var sp2fpInterp_d : domain(2); // {elemType, interpOrder}
+  var sp2spDeriv_d  : domain(2*int);
 
+  // Coefficient structures
   var sp2fpInterp : [sp2fpInterp_d] interpolation_coefficients_t;
+  var sp2spDeriv  : [sp2spDeriv_d]  interpolation_coefficients_t;
 
   proc init_sp2fpInterp(minOrder : int, maxOrder : int, cellTopos : set(int))
   {
@@ -63,133 +65,172 @@ prototype module Interpolation
     // Calculate all relevant coefficients
   }
 
-  proc eval_LagrangePoly1D( in k : int, in x : real, in xi : [] real ) : real
+  proc init_sp2spDeriv(minOrder : int, maxOrder : int, cellTopos : set(int))
   {
-    // Get the value of the 1D Lagrange polynomial at point x
+    use Parameters.ParamMesh;
+    use Polynomials;
+
+    // Add all combination of cell topology and interpolation order to the domain
+    for cellTopo in cellTopos do
+      for interpOrder in minOrder..maxOrder do
+        sp2spDeriv_d.add((cellTopo, interpOrder));
+
+    for (cellTopo, interpOrder) in sp2spDeriv.domain
+    {
+      select cellTopo
+      {
+        when TOPO_LINE
+        {
+          var spCnt : range = 1..interpOrder;
+
+          // Need to build an appropriate way to query the point location for each element.
+          // Initially assume the whole mesh uses the same base distribution specified in input file.
+          // Even more initially assume the whole mesh has SPs on Legendre roots. xD
+          var spLoc : [spCnt] real = nodes_legendre_gauss(interpOrder);
+
+          sp2spDeriv[(cellTopo, interpOrder)] = new interpolation_coefficients_t({spCnt, spCnt})!;
+
+          for sp in spCnt do
+            sp2spDeriv[(cellTopo, interpOrder)]!.coefs[{sp..sp,spCnt}] =
+                  reshape(eval_DLagrangeDx_array(spLoc[sp], spLoc), {sp..sp, spCnt});
+        }
+        when TOPO_TRIA {}
+        when TOPO_QUAD {}
+        when TOPO_TETR {}
+        when TOPO_PYRA {}
+        when TOPO_PRIS {}
+        when TOPO_HEXA {}
+        otherwise do writeln("Unsupported mesh element found at interpolation initialization.");
+      }
+    }
+
+    // Calculate all relevant coefficients
+  }
+
+  proc eval_LagrangePoly1D(x : real, k : int, xi : [] real) : real
+  {
+    // Evaluate the k-th basis vector of the 1D Lagrange basis defined by the set of nodes xi[] at the point x.
     //
-    //                  nfp
-    //   d             _____
-    //  -- [L_k (x)] =  | |   x   - xi(i)
-    //  dx              | |  -------------
-    //                  i=1  xi(k) - xi(i)
-    //                 i/=k
+    //               nfp
+    //              _____
+    //               | |     x  - xi(i)
+    //    L_k (x) =  | |  -------------
+    //               i=1  xi(k) - xi(i)
+    //              i/=k
     //
-    // K  : The value of the Lagrange polynomial is 1 at xi(k)
-    // X  : Location at which to evaluate the k-th Lagrange polynomial
-    // XI : Array of all the interpolation points
+    //  x  : Coordinate at which to evaluate the k-th Lagrange basis polynomial
+    //  k  : Index of the basis vector being evaluated
+    //  xi : Array of all the interpolation nodes coordinates
     //
-    // This evaluates the Lagrange polynomial at the location x.
-    // The Lagrange polynomial corresponds to a function that
-    // is 0.0 at all interpolation points xi(i) for i=1,nfp
-    // except at xi(k) where the function is equal to 1.
+    // The k-th basis vector of a Lagrange basis is a polynomial function that evaluates to 0 at all nodes xi[] except
+    // at xi[k] where it evaluates to 1.
 
     var return_value : real = 1;
-    var factors : domain(int) = xi.domain;
 
-    for i in (factors - k) do
+    for i in (xi.domain - k) do
       return_value *= (x-xi[i]) / (xi[k]-xi[i]);
 
     return return_value;
+  }
 
-  } // eval_LagrangePoly1D
-
-  proc eval_LagrangePoly1D_array( in x : real, in xi : [] real) : [] real
+  proc eval_LagrangePoly1D_array(x : real, xi : [] real) : [] real
   {
     // Get the values of the 1D Lagrange polynomials at point x
     //
-    // X  : Location at which to evaluate the k-th Lagrange polynomial
-    // XI : Array of all the interpolation points
+    //  x  : Coordinate at which to evaluate the k-th Lagrange basis polynomial
+    //  xi : Array of all the interpolation nodes coordinates
     //
-    // This evaluates the Lagrange polynomial at the location x.
-    // The Lagrange polynomial corresponds to a function that
-    // is 0.0 at all iterpolation points xi(i) for i=1,nfp
-    // except at xi(k) where the function is equal to 1.
+    // This evaluates the Lagrange polynomial at the location x. The Lagrange polynomial corresponds to a function that
+    // is 0.0 at all iterpolation points xi(i) for i=1,nfp except at xi(k) where the function is equal to 1.
 
     var return_value : [xi.domain] real;
 
     for k in xi.domain do
-      return_value[k] = eval_LagrangePoly1D(k, x, xi);
+      return_value[k] = eval_LagrangePoly1D(x, k, xi);
 
     return return_value;
+  }
 
-  } // eval_LagrangePoly1D_array
-
-  proc eval_DLagrangeDx( in k : int, in x : real, in xi : [] real) : real
+  proc eval_DLagrangeDx(x : real, k : int, xi : [] real) : real
   {
-    // Get the value of the derivative of the
-    // k-th Lagrange polynomial at the point x.
+    // Evaluate the derivative of the k-th basis vector of the 1D Lagrange basis defined by the set of nodes xi[] at the
+    // point x.
     //
-    //                  nfp                nfp
-    //   d              ___               _____
-    //  -- [L_k (x)] =  \         1        | |   x   - x(j)
-    //  dx              /__  -----------   | |  -----------
-    //                       x(k) - x(i)   j=1  x(k) - x(j)
-    //                  i=1               j/=i
-    //                 i/=k               j/=k
+    //                    nfp                  nfp
+    //                    ___                 _____
+    //     d              \          1         | |     x  - xi(j)
+    //    -- [L_k (x)] =  /__  -------------   | |  -------------
+    //    dx                   xi(k) - xi(i)   j=1  xi(k) - xi(j)
+    //                    i=1                 j/=i
+    //                   i/=k                 j/=k
     //
-    // k  : index where the value at xi(k) is 1
-    // X  : x location at which to evaluate the derivative
-    //      of the k-th Lagrange polynomial
-    // XI : array of all the interpolation points
+    //  x  : Coordinate at which to evaluate the derivative of the k-th Lagrange basis polynomial
+    //  k  : Index of the basis vector being evaluated
+    //  xi : Array of all the interpolation nodes coordinates
 
-    var return_value : real = 0.0;
+    var evalDLagrangeDx : real = 0.0;
 
-    if (xi.size == 1) then
-      return 0;
+    for i in (xi.domain - k) do
+      evalDLagrangeDx += eval_LagrangePoly1D(x, k, xi[...]) / (xi(k)-xi(i));
 
-    for i in xi.domain - k do
-      return_value += eval_LagrangePoly1D(i,x,xi[xi.domain-i]) / (xi(k)-xi(i));
+    return evalDLagrangeDx;
+  }
 
-    return return_value;
-
-  } // eval_DLagrangeDx
-
-  proc eval_D2LagrangeDx2(m : int, x : real, xi : real) : real
+  proc eval_DLagrangeDx_array(x : real, xi : [] real) : [] real
   {
-    // Get value of second derivative of
-    // m-th Lagrange polynomial at point x.
+    // Evaluate the derivative of the k-th basis vector of the 1D Lagrange basis defined by the set of nodes xi[] at the
+    // point x.
     //
-    //                   nfp                nfp                nfp
-    //  d2               ___                ___               _____
-    // --- [L_m (x)]  =  \         1        \         1        | |   x   - x(j)
-    // dx2               /__  -----------   /__  -----------   | |  -----------
-    //                        x(m) - x(l)        x(m) - x(n)   j=1  x(m) - x(j)
-    //                   l=1                n=1               j/=l
-    //                  l/=m               n/=l               j/=n
-    //                                     n/=m               j/=m
-    //
-    // m  : index where the value at xi(m) is 1
-    // X  : x location at which to evaluate the second
-    //      derivative of the m-th Lagrange polynomial
-    // XI : array of all the interpolation points
+    //  x  : Coordinate at which to evaluate the derivative of the k-th Lagrange basis polynomial
+    //  xi : Array of all the interpolation nodes coordinates
 
-//    //.. Local Scalars ..
-//    var l, n, nfp : int;
-//
-//    //.. Local Arrays ..
-//    int, dimension(1:size(xi)) :: imask
-//    logical(lk), dimension(1:size(xi)) :: lmask
-//
-//    nfp = size(xi)
-//
-//    imask(:) = (/ (l,l=1,nfp) /)
-//
-//    return_value = 0.0
-//
-//    if (nfp > 2) {
-//
-//      for l in [1..nfp] {
-//        if (l == m) cycle
-//        for n in [1..nfp] {
-//          if ( (n == m) .or. (n == l) ) cycle
-//          lmask = (imask/=m .and. imask/=l .and. imask/=n)
-//          return_value = return_value + product( x    -xi(1:nfp) , lmask ) / &
-//                                        product( xi(m)-xi(1:nfp) , lmask ) / &
-//                                        (xi(m) - xi(n))
-//        }
-//        return_value = return_value / (xi(m) - xi(l))
-//      }
-//    }
+    var evalDLagrangeDxArray : [xi.domain] real;
+
+    for k in xi.domain do
+      evalDLagrangeDxArray[k] = eval_DLagrangeDx(x, k, xi);
+
+    return evalDLagrangeDxArray;
+  }
+
+  proc eval_D2LagrangeDx2(x : real, k : int, xi : real) : real
+  {
+    // Evaluate the second derivative of the k-th basis vector of the 1D Lagrange basis defined by the set of nodes xi[]
+    // at the point x.
+    //
+    //                      nfp                nfp                  nfp
+    //                      ___                ___                 _____
+    //     d²               \         1        \          1         | |     x  - xi(n)
+    //    --- [L_k (x)]  =  /__ -------------  /__  -------------   | |  -------------
+    //    dx²                   xi(k) - xi(l)       xi(k) - xi(m)   n=1  xi(k) - xi(n)
+    //                      l=1                m=1                 n/=l
+    //                     l/=k               m/=l                 n/=m
+    //                                        m/=k                 n/=k
+    //
+    //  x  : Coordinate at which to evaluate the second derivative of the k-th Lagrange basis polynomial
+    //  k  : Index of the basis vector being evaluated
+    //  xi : Array of all the interpolation nodes coordinates
+
+    var evalD2LagrangeDx2 : real = 0.0;
+
+    for l in xi.domain - k do
+      evalD2LagrangeDx2 += eval_DLagrangeDx(x, k, xi[xi.domain-l]) / (xi(k)-xi(l));
+
+    return evalD2LagrangeDx2;
+  }
+
+  proc eval_D2LagrangeDx2_array(x : real, k : int, xi : real) : [xi.domain] real
+  {
+    // Get value of second derivative of k-th Lagrange polynomial at point x.
+    //
+    //  x  : Coordinate at which to evaluate the second derivative of the k-th Lagrange basis polynomial
+    //  xi : Array of all the interpolation nodes coordinates
+
+    var evalD2LagrangeDx2Array : [xi.domain] real = 0.0;
+
+    for k in xi.domain do
+      evalD2LagrangeDx2Array[k] = eval_D2LagrangeDx2(x, k, xi[xi.domain]);
+
+    return evalD2LagrangeDx2Array;
   }
 
   proc main()
@@ -259,8 +300,19 @@ prototype module Interpolation
 
     cellTopos.add(2);
 
-    init_sp2fpInterp(1,9,cellTopos);
+    init_sp2fpInterp(1, 9, cellTopos);
     writeln(sp2fpInterp);
+    writeln();
+
+    //writeln( "y_%i (%6.3dr): %7.4dr   Interpolation: %7.4dr   Error: %11.3er   Relative: %11.3er".format(i, x[j], y_x[j], interpolation, error(y_x(j), interpolation), relative_error(y_x(j), interpolation)) );
+    writeln();
+
+    writeln();
+    writeln("Derivative initialized structure for FR:");
+    writeln();
+
+    init_sp2spDeriv(3, 4, cellTopos);
+    writeln(sp2spDeriv);
     writeln();
 
     //writeln( "y_%i (%6.3dr): %7.4dr   Interpolation: %7.4dr   Error: %11.3er   Relative: %11.3er".format(i, x[j], y_x[j], interpolation, error(y_x(j), interpolation), relative_error(y_x(j), interpolation)) );
