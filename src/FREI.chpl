@@ -269,6 +269,7 @@ module FREI
           //
           // The residual array is reset in the time stepping procedure
           residueTimer.clear();
+          writef("   Stage %1i\n", stage);
 
           // Component 1: Source Term
           {
@@ -287,6 +288,7 @@ module FREI
                                                  Input.eqSet                );
 
             srcTermTime += stopwatch.elapsed(timeUnit);
+            writef("      Stopwatch - Src Term: %10.2dr ms\n", stopwatch.elapsed(TimeUnits.milliseconds));
           }
           stringIter = "iter_" + iteration:string + "-stage_" + stage:string;
           if iteration % ioIter == 0 then
@@ -398,6 +400,7 @@ module FREI
               //dscFluxTime4 += dscFluxWatch.elapsed(timeUnit);
             }
             dscFluxTime += stopwatch.elapsed(timeUnit);
+            writef("      Stopwatch - Dsc Flux: %10.2dr ms\n", stopwatch.elapsed(TimeUnits.milliseconds));
           }
           if iteration % ioIter == 0
           {
@@ -545,6 +548,7 @@ module FREI
             cntFluxTime3 += cntFluxWatch.elapsed(timeUnit);
 
             cntFluxTime += stopwatch.elapsed(timeUnit);
+            writef("      Stopwatch - Cnt Flux: %10.2dr ms\n", stopwatch.elapsed(TimeUnits.milliseconds));
           }
 
           for meshSP in res3.domain.dim(0) do
@@ -586,6 +590,7 @@ module FREI
           frMesh.resSP = 0.0;
 
           timeStepTime += stopwatch.elapsed(timeUnit);
+          writef("      Stopwatch - Timestep: %10.2dr ms\n", stopwatch.elapsed(TimeUnits.milliseconds));
         }
 
         // Stabilize Solution
@@ -616,6 +621,7 @@ module FREI
           }
 
           stabilizeTime += stopwatch.elapsed(timeUnit);
+          writef("      Stopwatch - Stabiliz: %10.2dr ms\n", stopwatch.elapsed(TimeUnits.milliseconds));
         }
 
         if iteration % ioIter == 0 then
