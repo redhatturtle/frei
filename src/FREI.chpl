@@ -235,6 +235,15 @@ module FREI
     writef("Stopwatch - Init    : %10.2dr ms\n", initTime);
     writef("Start Iterating\n");
 
+    // Residue debug additions
+    use IO;
+    use Path;
+    var outputDir  : string = curDir;
+    var stringIter : string;
+    var res1 : [frMesh.resSP.domain] real;
+    var res2 : [frMesh.resSP.domain] real;
+    var res3 : [frMesh.resSP.domain] real;
+
     // Main: Solve flow
     iterTimer.start();
     for iteration in 1..Input.maxIter
@@ -247,6 +256,10 @@ module FREI
       // Iterate RK stages
       for stage in 1..timeStepStages
       {
+        res1 = 0.0;
+        res2 = 0.0;
+        res3 = 0.0;
+
         // Calculate residue for this iteration
         {
           // The residue has 3 components:
@@ -268,8 +281,16 @@ module FREI
                                                              Input.eqSet                 )
                                                * frMesh.jacSP[spIdx];
 
+            for spIdx in frMesh.resSP.domain.dim(0) do
+              res1[spIdx..#1, ..] = -source_term(frMesh.xyzSP[spIdx..#1, ..],
+                                                 frMesh.solSP[spIdx..#1, ..],
+                                                 Input.eqSet                );
+
             srcTermTime += stopwatch.elapsed(timeUnit);
           }
+          stringIter = "iter_" + iteration:string + "-stage_" + stage:string;
+          if iteration % ioIter == 0 then
+            output_gnuplot(outputDir, "res_src_gnuplt", stringIter, frMesh.xyzSP, res1);
 
           // Component 2: Discontinuous Flux
           {
@@ -364,10 +385,25 @@ module FREI
                   var flxsp = flxSP[dimIdx, .., 1..cellSPcnt];
                   frMesh.resSP[meshSP, ..] += dot(flxsp, sp2spDeriv[(cellTopo, frMesh.solOrder)]!.coefs[cellSP, dimIdx, ..]);
                 }
+
+                for dimIdx in 1..frMesh.nDims
+                {
+                  var coefs : [sp2spDeriv[(thisCell.elemTopo(), iOrder)]!.coefs[cellSP, dimIdx, ..].domain] real
+                             = sp2spDeriv[(thisCell.elemTopo(), iOrder)]!.coefs[cellSP, dimIdx, ..];
+                  var flxsp : [flxSP[cellSPini..#cellSPcnt, dimIdx, ..].domain] real
+                             = flxSP[cellSPini..#cellSPcnt, dimIdx, ..];
+
+                res2[meshSP,..] = dot(coefs, flxsp) / frMesh.jacSP[meshSP];
               }
               //dscFluxTime4 += dscFluxWatch.elapsed(timeUnit);
             }
             dscFluxTime += stopwatch.elapsed(timeUnit);
+          }
+          if iteration % ioIter == 0
+          {
+            output_gnuplot(outputDir, "flx_fp1_gnuplt", stringIter, frMesh.xyzFP, frMesh.flxFP[..,1,..]);
+            output_gnuplot(outputDir, "flx_fp2_gnuplt", stringIter, frMesh.xyzFP, frMesh.flxFP[..,2,..]);
+            output_gnuplot(outputDir, "res_dsc_gnuplt", stringIter, frMesh.xyzSP, res2);
           }
 
           // Component 3: Continuous Flux
@@ -499,6 +535,10 @@ module FREI
                   frMesh.resSP[cellSPini.. #cellSPcnt, ..] += outer(
                       flux_correction[(cellTopo, frMesh.solOrder+1)]!.correction[cellFP, 1..cellSPcnt],
                       jump[..]);
+
+                  res3[cellSPini.. #cellSPcnt, ..] += outer(
+                      flux_correction[(thisCell.elemTopo(), iOrder+1)]!.correction[cellFP, 1..cellSPcnt],
+                      jump[..]);
                 }
               }
             }
@@ -506,6 +546,12 @@ module FREI
 
             cntFluxTime += stopwatch.elapsed(timeUnit);
           }
+
+          for meshSP in res3.domain.dim(0) do
+            res3[meshSP, ..] /= frMesh.jacSP[meshSP];
+
+          if iteration % ioIter == 0 then
+            output_gnuplot(outputDir, "res_cnt_gnuplt", stringIter, frMesh.xyzSP, res3);
 
           residueTime += residueTimer.elapsed(timeUnit);
         }
@@ -571,6 +617,9 @@ module FREI
 
           stabilizeTime += stopwatch.elapsed(timeUnit);
         }
+
+        if iteration % ioIter == 0 then
+          output_gnuplot(outputDir, "res_tot_gnuplt", stringIter, frMesh.xyzSP, frMesh.resSP);
       }
 
       // Print solver status / log
