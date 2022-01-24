@@ -57,6 +57,8 @@ PATH_TO_LAPACK_BINARIES="/usr/lib64/lapack"
 echo "(1/3) Building Debug version of Frei..."
 echo
 chpl -o build/frei_dbg.$EXTENSION                          \
+     -g                                                    \
+     --savec build/csource_dbg/                            \
      --warnings                                            \
      --warn-unstable                                       \
      -I$PATH_TO_CBLAS_DIR                                  \
@@ -109,6 +111,7 @@ echo "(2/3) Building Optimized version of Frei..."
 echo
 chpl -o build/frei_opt.$EXTENSION                          \
      --fast                                                \
+     --savec build/csource_opt/                            \
      -I$PATH_TO_CBLAS_DIR                                  \
      -L$PATH_TO_BLAS_LIBS -lcblas                          \
      -I$PATH_TO_LAPACKE_INCLUDE_DIR                        \
@@ -165,6 +168,7 @@ echo "(3/3) Building Optimized Intel MKL version of Frei..."
 echo
 chpl -o build/frei_mkl.$EXTENSION                          \
      --fast                                                \
+     --savec build/csource_opt_mkl/                        \
      --set blasImpl=mkl                                    \
      --set lapackImpl=mkl                                  \
      -I$PATH_TO_CBLAS_DIR                                  \
