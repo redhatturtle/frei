@@ -29,6 +29,10 @@ module FREI
     use LinearAlgebra;
     use SourceTerm;
     use Temporal_Methods;
+    use VisualDebug;
+
+    // Start VisualDebug here
+    startVdebug ("ChapelVis-Frei");
 
     // Declare timing variables
     const timeUnit = TimeUnits.milliseconds;
