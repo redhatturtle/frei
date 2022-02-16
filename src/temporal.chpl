@@ -45,11 +45,34 @@ module Temporal_Methods
     return newSol;
   }
 
-  proc time_step(cfl : real, consVars : [] real) : real
+  proc time_step() : real
+  {
+    import Input.cfl;
+
+    select timeStepMethod
+    {
+      when global then timeStep = Input.timeStep;
+      when cell then timeStep = local_time_step(Input.cfl, );
+      when point then timeStep = local_time_step(Input.cfl, );
+    }
+  }
+
+  proc local_time_step(cfl : real, charLength : real, consVars : [] real) : real
   {
     import Flux.pressure_cv;
     import Flux.temperature_cv;
     import Flux.sound_speed_cv;
+
+    // SD2D implementation
+    {/*
+      inviscidEgenvalue = a + norm2(vel);
+      if ( isViscous == 1 ) then
+          getTimeStep = min( charLength * dt * charLength * REY * rho / getViscosity( T ),
+                             charLength * dt / invsicidEingenvalue)
+      else
+          getTimeStep = h * sdmesh%cell_list(cID)%clength / climit
+      endif
+    */}
 
     // Calculate time step size for variable time stepping / constant CFL time marching
 
@@ -60,17 +83,14 @@ module Temporal_Methods
     var velocity   : real = norm(consVars[idxMom]) / consVars[idxRho];
     var soundSpeed : real = sound_speed_cv(consVars);
 
-    var maxEigenvalue = soundSpeed + velocity;
-
-    // Placeholder values
-    var clength = 1;
-    var timeStep : real;
+    var maxInvsEigenvalue = soundSpeed + velocity;
 
     //if ( isViscous == 1 ) then
     //    getTimeStep = min( clength**2 * reynolds * consVars[inxRho] * dt / viscosity_cv( consVars ), clength * h /
-    //        maxEigenvalue);
+    //        maxInvsEigenvalue);
     //else
-        timeStep = cfl * clength / maxEigenvalue;
+
+    var timeStep = cfl * clength / maxInvsEigenvalue;
 
     return timeStep;
   }

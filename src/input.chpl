@@ -43,7 +43,9 @@ module Input
 
   //parTime
   var timeScheme : int = TIME_TVDRK_O2S3;
+  var timeStepMethod : int = CELL_BASED;
   var timeStep   : real = 1e-6;
+  var cfl : real = 1.0;
 
   //parOutput
   var ioIter  : int =   100;         // Number of iterations between output dumps

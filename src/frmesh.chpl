@@ -43,6 +43,8 @@ module FRMesh {
     var cellSPidx : [cellSPidx_d] int;  // Index of the first SP and number of SPs of a cell
     var faceFPidx : [faceFPidx_d] int;  // Index of the first FP and number of FPs of a face
 
+    var cellCharLength : [cellList_d] real; // Characteristic length used for variable time step
+
     override proc import_gmesh2(gmesh : gmesh2_c)
     {
       use Gmesh;

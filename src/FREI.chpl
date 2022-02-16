@@ -521,9 +521,7 @@ module FREI
             ref cellSPcnt : int = frMesh.cellSPidx[cellIdx, 2];
 
             // Calculate dt for this cell
-            var dt : real = Input.timeStep;
-            //if variableTimeStep then
-            //  dt = time_step();
+            var dt : real = time_step(Input.timeStep, variableTimeStep);
 
             // Convert the residual from the computational to the physical domain
             forall meshSP in cellSPini.. #cellSPcnt do
