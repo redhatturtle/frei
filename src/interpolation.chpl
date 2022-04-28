@@ -1,13 +1,13 @@
 module Interpolation
 {
-  use Random;
   use UnitTest;
   use Set;
 
   class interpolation_coefficients_c
   {
     var coefs_d : domain(2); // {nFPs, nSPs}
-    var coefs: [coefs_d] real;
+    var coefs_sd: sparse subdomain(coefs_d);
+    var coefs: [coefs_sd] real;
   }
 
   class derivation_coefficients_c
@@ -108,6 +108,7 @@ module Interpolation
             {
               var  xiFP : real;
               var etaFP : real;
+              var fpIdx : int = faceFP+(cellFace-1)*(interpOrder+1);
 
               select cellFace
               {
@@ -133,15 +134,60 @@ module Interpolation
                 }
               }
 
-              for sp in 1..spCnt
-              {
-                var i : int = (sp-1)%(interpOrder+1)+1;
-                var j : int = (sp-1)/(interpOrder+1)+1;
-                var fp : int = faceFP+(cellFace-1)*(interpOrder+1);
+              // Generic implementation for all FPs
+              //for spIdx in 1..spCnt
+              //{
+              //  var spRow : int = (spIdx-1)/(interpOrder+1)+1;
+              //  var spCol : int = (spIdx-1)%(interpOrder+1)+1;
 
-                sp2fpInterp[(cellTopo, interpOrder)]!.coefs[fp, sp] = eval_LagrangePoly1D( xiFP, i, spDistLine)
-                                                                     *eval_LagrangePoly1D(etaFP, j, spDistLine);
-              }
+              //  sp2fpInterp[(cellTopo, interpOrder)]!.coefs[fpIdx, spIdx] = eval_LagrangePoly1D( xiFP, spCol, spDistLine)
+              //                                                             *eval_LagrangePoly1D(etaFP, spRow, spDistLine);
+              //}
+
+              // Tensor product based / sparse coefficient matrix implementation
+              // FP is on Bottom or Top face of quad
+              if cellFace == 1 then
+                for spRow in 1..interpOrder+1
+                {
+                  var spCol : int = faceFP;
+                  var spIdx : int = (spRow-1)*(interpOrder+1)+spCol;
+
+                  sp2fpInterp[(cellTopo, interpOrder)]!.coefs_sd += (fpIdx, spIdx);
+                  sp2fpInterp[(cellTopo, interpOrder)]!.coefs[fpIdx, spIdx] = eval_LagrangePoly1D( xiFP, spCol, spDistLine)
+                                                                             *eval_LagrangePoly1D(etaFP, spRow, spDistLine);
+                }
+              if cellFace== 3 then
+                for spRow in 1..interpOrder+1
+                {
+                  var spCol : int = interpOrder+2-faceFP;
+                  var spIdx : int = (spRow-1)*(interpOrder+1)+spCol;
+
+                  sp2fpInterp[(cellTopo, interpOrder)]!.coefs_sd += (fpIdx, spIdx);
+                  sp2fpInterp[(cellTopo, interpOrder)]!.coefs[fpIdx, spIdx] = eval_LagrangePoly1D( xiFP, spCol, spDistLine)
+                                                                             *eval_LagrangePoly1D(etaFP, spRow, spDistLine);
+                }
+
+              // FP is on Right or Left face of quad
+              if cellFace == 2 then
+                for spCol in 1..interpOrder+1
+                {
+                  var spRow : int = faceFP;
+                  var spIdx : int = (spRow-1)*(interpOrder+1)+spCol;
+
+                  sp2fpInterp[(cellTopo, interpOrder)]!.coefs_sd += (fpIdx, spIdx);
+                  sp2fpInterp[(cellTopo, interpOrder)]!.coefs[fpIdx, spIdx] = eval_LagrangePoly1D( xiFP, spCol, spDistLine)
+                                                                             *eval_LagrangePoly1D(etaFP, spRow, spDistLine);
+                }
+              if cellFace== 4 then
+                for spCol in 1..interpOrder+1
+                {
+                  var spRow : int = interpOrder+2-faceFP;
+                  var spIdx : int = (spRow-1)*(interpOrder+1)+spCol;
+
+                  sp2fpInterp[(cellTopo, interpOrder)]!.coefs_sd += (fpIdx, spIdx);
+                  sp2fpInterp[(cellTopo, interpOrder)]!.coefs[fpIdx, spIdx] = eval_LagrangePoly1D( xiFP, spCol, spDistLine)
+                                                                             *eval_LagrangePoly1D(etaFP, spRow, spDistLine);
+                }
             }
         }
         when TOPO_TETR {}
@@ -292,40 +338,41 @@ module Interpolation
 
           for cellNode in 1..nodeCnt
           {
-            var  xiFP : real;
-            var etaFP : real;
+            var  xiNode : real;
+            var etaNode : real;
 
             select cellNode
             {
               when 1
               {
-                xiFP  = nodeDistLine[1];
-                etaFP = nodeDistLine[1];
+                xiNode  = nodeDistLine[1];
+                etaNode = nodeDistLine[1];
               }
               when 2
               {
-                xiFP  = nodeDistLine[2];
-                etaFP = nodeDistLine[1];
+                xiNode  = nodeDistLine[2];
+                etaNode = nodeDistLine[1];
               }
               when 3
               {
-                xiFP  = nodeDistLine[2];
-                etaFP = nodeDistLine[2];
+                xiNode  = nodeDistLine[2];
+                etaNode = nodeDistLine[2];
               }
               when 4
               {
-                xiFP  = nodeDistLine[1];
-                etaFP = nodeDistLine[2];
+                xiNode  = nodeDistLine[1];
+                etaNode = nodeDistLine[2];
               }
             }
 
-            for sp in 1..spCnt
+            for spIdx in 1..spCnt
             {
-              var i : int = (sp-1)%(interpOrder+1)+1;
-              var j : int = (sp-1)/(interpOrder+1)+1;
+              var spCol : int = (spIdx-1)%(interpOrder+1)+1;
+              var spRow : int = (spIdx-1)/(interpOrder+1)+1;
 
-              sp2nodeInterp[(cellTopo, interpOrder)]!.coefs[cellNode, sp] = eval_LagrangePoly1D( xiFP, i, spDistLine)
-                                                                           *eval_LagrangePoly1D(etaFP, j, spDistLine);
+              sp2nodeInterp[(cellTopo, interpOrder)]!.coefs_sd += (cellNode, spIdx);
+              sp2nodeInterp[(cellTopo, interpOrder)]!.coefs[cellNode, spIdx] = eval_LagrangePoly1D( xiNode, spCol, spDistLine)
+                                                                              *eval_LagrangePoly1D(etaNode, spRow, spDistLine);
             }
           }
         }
@@ -506,6 +553,34 @@ module Interpolation
            *eval_LagrangePoly1D(x[3], k[3], zeta[]);
   }
 
+  //////////////////////////////////////////
+  //   Lagrange Interpolation functions   //
+  //////////////////////////////////////////
+
+  inline proc interpolate_cell2fp(varSP : [] real, elemTopo : int, interpDegree : int, fpIdx : int) : [] real
+  {
+    // Interpolate a variable from a set of SPs to FPidx
+    return dot(sp2fpInterp[(elemTopo, interpDegree)]!.coefs[fpIdx, ..], varSP);
+  }
+
+  proc interpolate_cell2fp_alt(varSP : [] real, elemTopo : int, interpDegree : int, fpIdx : int, varFP : [] real)
+  {
+    // Interpolate a variable from a set of SPs to FPidx
+    varFP = dot(sp2fpInterp[(elemTopo, interpDegree)]!.coefs[fpIdx, ..], varSP);
+  }
+
+  proc interpolate_cell2face(varSP : [] real, elemTopo : int, interpDegree : int, faceIdx : int) : [] real
+  {
+    // Interpolate a variable from a set of SPs to all FPs on a faceIdx
+  }
+
+  proc interpolate_cell(varSP : [] real, elemTopo : int, interpDegree : int) : [] real
+  {
+    // Interpolate a variable from a set of SPs to all of FPs
+    //solFP[varIdx, fpIdx] = dot(sp2fpInterp[(thisCell.elemTopo(), frMesh.solOrder)]!.coefs,
+    //                           frMesh.solSP[cellSPini.. #cellSPcnt, ..]                              );
+  }
+
   ///////////////////////////////
   //   Module Test Procedure   //
   ///////////////////////////////
@@ -513,6 +588,7 @@ module Interpolation
   proc main()
   {
     use IO;
+    use Random;
     use Testing;
     use Parameters.ParamTest;
     use Parameters.ParamMesh;
