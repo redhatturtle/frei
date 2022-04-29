@@ -439,7 +439,7 @@ module FREI
 
             // Step 3: Calculate interface correction
             cntFluxWatch.clear();
-            forall cellIdx in frMesh.cellList.domain
+            for cellIdx in frMesh.cellList.domain
             {
               // Get loop variables
               ref cellSPini : int = frMesh.cellSPidx[cellIdx, 1];
@@ -458,7 +458,7 @@ module FREI
                   var jump : [1..frMesh.nVars] real;
 
                   // Operation 1: Calculate Riemann flux at the FP
-                  //jumpCorrectionWatch.clear();
+                  jumpCorrectionWatch.clear();
                   select Input.eqSet
                   {
                     when EQ_CONVECTION do
@@ -470,10 +470,10 @@ module FREI
                     when EQ_EULER do
                       jump = roe(frMesh.solFP[meshFP, 1, ..], frMesh.solFP[meshFP, 2, ..], frMesh.nrmFP[meshFP, ..]);
                   }
-                  //riemTime += jumpCorrectionWatch.elapsed(timeUnit);
+                  riemTime += jumpCorrectionWatch.elapsed(timeUnit);
 
                   // Operation 2: Calculate jump at a FP and convert it to the physical domain
-                  //jumpCorrectionWatch.clear();
+                  jumpCorrectionWatch.clear();
                   {
                     // Calculate the flux jump = -1*(local_flux) + numerical_flux
                     jump -= frMesh.flxFP[meshFP, faceSide, ..];
@@ -500,10 +500,10 @@ module FREI
                       }
                     }
                   }
-                  //jumpTime += jumpCorrectionWatch.elapsed(timeUnit);
+                  jumpTime += jumpCorrectionWatch.elapsed(timeUnit);
 
                   // Operation 3: Apply the correction to the residue matrix
-                  //jumpCorrectionWatch.clear();
+                  jumpCorrectionWatch.clear();
                   {
                     // For 1D each face has 1 FP therefore the FP and the Face have the same index Relative to it's
                     // position in the cell
@@ -519,7 +519,7 @@ module FREI
                     frMesh.resSP[.., cellSPini.. #cellSPcnt] += outer(jump[..]                          ,
                         flux_correction[(cellTopo, frMesh.solOrder+1)]!.correction[cellFP, 1..cellSPcnt]);
                   }
-                  //corrTime += jumpCorrectionWatch.elapsed(timeUnit);
+                  corrTime += jumpCorrectionWatch.elapsed(timeUnit);
                 }
               }
             }
