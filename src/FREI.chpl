@@ -282,7 +282,7 @@ module FREI
             stopwatch.clear();
 
             // Calculate flux at SPs and it's divergence
-            forall cellIdx in frMesh.cellList.domain
+            for cellIdx in frMesh.cellList.domain
             {
               // Get loop variables
               ref cellSPini : int = frMesh.cellSPidx[cellIdx, 1];
@@ -294,7 +294,7 @@ module FREI
               var flxSP : [1..frMesh.nDims, 1..frMesh.nVars, 1..cellSPcnt] real;
 
               // Step 1: Calculate fluxes at SPs
-              //dscFluxWatch.clear();
+              dscFluxWatch.clear();
               for meshSP in cellSPini.. #cellSPcnt do
                 select Input.eqSet
                 {
@@ -307,10 +307,10 @@ module FREI
                   when EQ_EULER do
                     flxSP[.., .., meshSP-cellSPini+1] = euler_flux_cv(frMesh.solSP[.., meshSP]);
                 }
-              //dscFluxTime1 += dscFluxWatch.elapsed(timeUnit);
+              dscFluxTime1 += dscFluxWatch.elapsed(timeUnit);
 
               // Step 2: Interpolate fluxes to FPs and save the FP normal flux
-              //dscFluxWatch.clear();
+              dscFluxWatch.clear();
               for cellFace in thisCell.faces.domain
               {
                 // Get loop variables
@@ -347,20 +347,20 @@ module FREI
                   }
                 }
               }
-              //dscFluxTime2 += dscFluxWatch.elapsed(timeUnit);
+              dscFluxTime2 += dscFluxWatch.elapsed(timeUnit);
 
               // Step 3: Convert fluxes from physical to computational domain
-              //dscFluxWatch.clear();
+              dscFluxWatch.clear();
               for meshSP in cellSPini.. #cellSPcnt
               {
                 // Multiply the flux vector by the inverse Jacobian matrix and by the Jacobian determinant
                 var flxsp = flxSP[.., .., meshSP-cellSPini+1];
                 flxSP[.., .., meshSP-cellSPini+1] = dot( frMesh.metSP[meshSP, .., ..], flxsp)*frMesh.jacSP[meshSP];
               }
-              //dscFluxTime3 += dscFluxWatch.elapsed(timeUnit);
+              dscFluxTime3 += dscFluxWatch.elapsed(timeUnit);
 
               // Step 4: Calculate flux divergence
-              //dscFluxWatch.clear();
+              dscFluxWatch.clear();
               for cellSP in 1..cellSPcnt
               {
                 var meshSP = cellSPini + cellSP - 1;
@@ -371,7 +371,7 @@ module FREI
                   frMesh.resSP[.., meshSP] += dot(flxsp, sp2spDeriv[(cellTopo, frMesh.solOrder)]!.coefs[cellSP, dimIdx, ..]);
                 }
               }
-              //dscFluxTime4 += dscFluxWatch.elapsed(timeUnit);
+              dscFluxTime4 += dscFluxWatch.elapsed(timeUnit);
             }
             dscFluxTime += stopwatch.elapsed(timeUnit);
           }
