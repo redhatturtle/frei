@@ -122,6 +122,8 @@ It seems like a good rule of thumb to try to use 4 letter abbreviations.
 
 - `Sub` : Subsonic
 - `Sup` : Supersonic
+- `Ref` : Reference value for non-dimensionalizing
+- `Inf` : Free-stream properties
 
 - `Dens`   : Density
 - `Ener`   : Energy
@@ -129,7 +131,7 @@ It seems like a good rule of thumb to try to use 4 letter abbreviations.
 - `Temp`   : Temperature
 - `VelV`, `VelX`, `VelY`, `VelZ` : Velocity vector and it's components
 - `MomV`, `MomX`, `MomY`, `MomZ` : Momentum vector and it's components
-- `Vel`    : Velocity magnitude
+- `VelM`    : Velocity magnitude
 - `Mach`   : Mach Number
 - `A`      : Speed of Sound
 - `EneK`, `EneKin`, `ek` : Kinetic Energy / Dynamic Pressure

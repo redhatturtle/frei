@@ -52,6 +52,12 @@ module Input
   var maxTime : real = 1.00;         // Maximum time to simulate
   var outError: int =     0;         // Calculate and output solution error
 
+  //parForces or parAero
+  var forcesFaml : [1..9] string;
+  var densInf : real = 1.225;
+  var velInf  : real = 0.0;
+  var presInf : real = 101325.0;
+
   //parRef
   var rhoRef  : real = 1.0;          // Reference density for non-dimensionalization
   var pRef    : real = 1.0;          // Reference pressure for non-dimensionalization
@@ -172,6 +178,13 @@ module Input
       ioTime   = tomlData!["parOutput"]!["ioTime"]!.re : real;
       maxTime  = tomlData!["parOutput"]!["maxTime"]!.re : real;
       outError = tomlData!["parOutput"]!["outError"]!.i : int;
+
+      // parForces
+      for famlIdx in tomlData!["parForces"]!["forcesFaml"]!.arr.domain do
+        forcesFaml[famlIndx] = tomlData!["parForces"]!["forcesFaml"]!.arr[famlIdx]!.s : string;
+      densInf = tomlData!["parForces"]!["densInf"]!.re : real;
+      velInf  = tomlData!["parForces"]!["velInf"]!.re  : real;
+      presInf = tomlData!["parForces"]!["presinf"]!.re : real;
 
       // parRef
       rhoRef   = tomlData!["parRef"]!["rhoRef"]!.re : real;
