@@ -89,7 +89,7 @@ module Interpolation
             sp2fpInterp[(cellTopo, interpOrder)]!.coefs[{fp..#1, 1..spCnt}] = reshape(
                 eval_LagrangePoly1D_array(fpDistLine[fp], spDistLine), {fp..#1, 1..spCnt});
         }
-        when TOPO_TRIA {}
+        //when TOPO_TRIA {}
         when TOPO_QUAD
         {
           var spCnt : int = (interpOrder+1)**2;
@@ -133,21 +133,95 @@ module Interpolation
                 }
               }
 
-              for sp in 1..spCnt
+              for spIdx in 1..spCnt
               {
-                var i : int = (sp-1)%(interpOrder+1)+1;
-                var j : int = (sp-1)/(interpOrder+1)+1;
-                var fp : int = faceFP+(cellFace-1)*(interpOrder+1);
+                var i : int = 1 + ( (spIdx-1)/(interpOrder+1)**0 ) %(interpOrder+1);
+                var j : int = 1 + ( (spIdx-1)/(interpOrder+1)**1 ) %(interpOrder+1);
 
-                sp2fpInterp[(cellTopo, interpOrder)]!.coefs[fp, sp] = eval_LagrangePoly1D( xiFP, i, spDistLine)
-                                                                     *eval_LagrangePoly1D(etaFP, j, spDistLine);
+                var fpIdx : int = faceFP + (cellFace-1)*(interpOrder+1);
+
+                sp2fpInterp[(cellTopo, interpOrder)]!.coefs[fpIdx, spIdx] = eval_LagrangePoly1D( xiFP, i, spDistLine)
+                                                                           *eval_LagrangePoly1D(etaFP, j, spDistLine);
               }
             }
         }
-        when TOPO_TETR {}
-        when TOPO_PYRA {}
-        when TOPO_PRIS {}
-        when TOPO_HEXA {}
+        //when TOPO_TETR {}
+        //when TOPO_PYRA {}
+        //when TOPO_PRIS {}
+        when TOPO_HEXA
+        {
+          var spCnt : int = (interpOrder+1)**3;
+          var fpCnt : int = ((interpOrder+1)**2)*6;
+
+          sp2fpInterp[(cellTopo, interpOrder)] = new interpolation_coefficients_t({1..fpCnt, 1..spCnt})!;
+
+          // Need to build an appropriate way to query the point location for each element.
+          // Initially assume the whole mesh uses the same base distribution specified in input file.
+          // Even more initially assume the whole mesh has SPs on Legendre roots.
+          var spDistLine : [1..interpOrder+1] real = nodes_legendre_gauss(interpOrder+1);
+          var fpDistLine : [1..2] real = [-1.0, 1.0];
+
+          for cellFace in 1..elem_faces(TOPO_HEXA) do
+            for faceFP in 1..(interpOrder+1)**2
+            {
+              var   xiFP : real;
+              var  etaFP : real;
+              var zetaFP : real;
+
+              select cellFace
+              {
+                when 1
+                {
+                  xiFP   = spDistLine[(faceFP-1)%(interpOrder+1)+1];
+                  etaFP  = spDistLine[(faceFP-1)/(interpOrder+1)+1];
+                  zetaFP = fpDistLine[1];
+                }
+                when 2
+                {
+                  xiFP   = spDistLine[(faceFP-1)/(interpOrder+1)+1];
+                  etaFP  = fpDistLine[1];
+                  zetaFP = spDistLine[(faceFP-1)%(interpOrder+1)+1];
+                }
+                when 3
+                {
+                  xiFP   = fpDistLine[1];
+                  etaFP  = spDistLine[(faceFP-1)%(interpOrder+1)+1];
+                  zetaFP = spDistLine[(faceFP-1)/(interpOrder+1)+1];
+                }
+                when 4
+                {
+                  xiFP   = spDistLine[(faceFP-1)/(interpOrder+1)+1];
+                  etaFP  = spDistLine[(faceFP-1)%(interpOrder+1)+1];
+                  zetaFP = fpDistLine[2];
+                }
+                when 5
+                {
+                  xiFP   = spDistLine[((interpOrder+1)**2-faceFP)/(interpOrder+1)+1]; // Reverse order
+                  etaFP  = fpDistLine[2];
+                  zetaFP = spDistLine[(faceFP-1)%(interpOrder+1)+1];
+                }
+                when 6
+                {
+                  xiFP   = fpDistLine[2];
+                  etaFP  = spDistLine[(faceFP-1)/(interpOrder+1)+1];
+                  zetaFP = spDistLine[(faceFP-1)%(interpOrder+1)+1];
+                }
+              }
+
+              for spIdx in 1..spCnt
+              {
+                var i : int = 1 + ( (spIdx-1)/(interpOrder+1)**0 ) %(interpOrder+1);
+                var j : int = 1 + ( (spIdx-1)/(interpOrder+1)**1 ) %(interpOrder+1);
+                var k : int = 1 + ( (spIdx-1)/(interpOrder+1)**2 ) %(interpOrder+1);
+
+                var fpIdx : int = faceFP + (cellFace-1)*(interpOrder+1)**2;
+
+                sp2fpInterp[(cellTopo, interpOrder)]!.coefs[fpIdx, spIdx] = eval_LagrangePoly1D(  xiFP, i, spDistLine)
+                                                                           *eval_LagrangePoly1D( etaFP, j, spDistLine)
+                                                                           *eval_LagrangePoly1D(zetaFP, k, spDistLine);
+              }
+            }
+        }
         otherwise do writeln("Unsupported mesh element found at interpolation initialization.");
       }
     }
@@ -194,7 +268,7 @@ module Interpolation
             sp2spDeriv[(cellTopo, interpOrder)]!.coefs[{sp..#1, 1..#1, 1..spCnt}] =
                   reshape(eval_DLagrangeDx_array(spLoc[sp], spLoc), {sp..#1, 1..#1, 1..spCnt});
         }
-        when TOPO_TRIA {}
+        //when TOPO_TRIA {}
         when TOPO_QUAD
         {
           var spCnt : int = (interpOrder+1)**2;
@@ -208,13 +282,13 @@ module Interpolation
 
           for toSP in 1..spCnt
             {
-              var  xi : real = spDistLine[(toSP-1)%(interpOrder+1)+1];
-              var eta : real = spDistLine[(toSP-1)/(interpOrder+1)+1];
+              var  xi : real = spDistLine[1 + (toSP-1)%(interpOrder+1)];
+              var eta : real = spDistLine[1 + (toSP-1)/(interpOrder+1)];
 
               for fromSP in 1..spCnt
               {
-                var i : int = (fromSP-1)%(interpOrder+1)+1;
-                var j : int = (fromSP-1)/(interpOrder+1)+1;
+                var i : int = 1 + (fromSP-1)%(interpOrder+1);
+                var j : int = 1 + (fromSP-1)/(interpOrder+1);
 
                 sp2spDeriv[(cellTopo, interpOrder)]!.coefs[toSP, 1, fromSP] = eval_DLagrangeDx(xi, i, spDistLine)
                                                                              *eval_LagrangePoly1D(eta, j, spDistLine);
@@ -224,10 +298,47 @@ module Interpolation
               }
             }
         }
-        when TOPO_TETR {}
-        when TOPO_PYRA {}
-        when TOPO_PRIS {}
-        when TOPO_HEXA {}
+        //when TOPO_TETR {}
+        //when TOPO_PYRA {}
+        //when TOPO_PRIS {}
+        when TOPO_HEXA
+        {
+          var spCnt : int = (interpOrder+1)**3;
+
+          sp2spDeriv[(cellTopo, interpOrder)] = new derivation_coefficients_t({1..spCnt, 1..3, 1..spCnt})!;
+
+          // Need to build an appropriate way to query the point location for each element.
+          // Initially assume the whole mesh uses the same base distribution specified in input file.
+          // Even more initially assume the whole mesh has SPs on Legendre roots.
+          var spDistLine : [1..interpOrder+1] real = nodes_legendre_gauss(interpOrder+1);
+
+          for toSP in 1..spCnt
+            {
+              var   xi : real = spDistLine[1 + ( (toSP-1)/(interpOrder+1)**0 ) %(interpOrder+1)];
+              var  eta : real = spDistLine[1 + ( (toSP-1)/(interpOrder+1)**1 ) %(interpOrder+1)];
+              var zeta : real = spDistLine[1 + ( (toSP-1)/(interpOrder+1)**2 ) %(interpOrder+1)];
+
+              for fromSP in 1..spCnt
+              {
+                var i : int = 1 + ( (fromSP-1)/(interpOrder+1)**0 ) %(interpOrder+1);
+                var j : int = 1 + ( (fromSP-1)/(interpOrder+1)**1 ) %(interpOrder+1);
+                var k : int = 1 + ( (fromSP-1)/(interpOrder+1)**2 ) %(interpOrder+1);
+
+
+                sp2spDeriv[(cellTopo, interpOrder)]!.coefs[toSP, 1, fromSP] = eval_DLagrangeDx(     xi, i, spDistLine)
+                                                                             *eval_LagrangePoly1D( eta, j, spDistLine)
+                                                                             *eval_LagrangePoly1D(zeta, k, spDistLine);
+
+                sp2spDeriv[(cellTopo, interpOrder)]!.coefs[toSP, 2, fromSP] = eval_LagrangePoly1D(  xi, i, spDistLine)
+                                                                             *eval_DLagrangeDx(    eta, j, spDistLine)
+                                                                             *eval_LagrangePoly1D(zeta, k, spDistLine);
+
+                sp2spDeriv[(cellTopo, interpOrder)]!.coefs[toSP, 3, fromSP] = eval_LagrangePoly1D(  xi, i, spDistLine)
+                                                                             *eval_LagrangePoly1D( eta, j, spDistLine)
+                                                                             *eval_DLagrangeDx(   zeta, k, spDistLine);
+              }
+            }
+        }
         otherwise do writeln("Unsupported mesh element found at interpolation initialization.");
       }
     }
@@ -276,7 +387,7 @@ module Interpolation
             sp2nodeInterp[(cellTopo, interpOrder)]!.coefs[{node..#1, 1..spCnt}] = reshape(
                 eval_LagrangePoly1D_array(nodeDistLine[node], spDistLine), {node..#1, 1..spCnt});
         }
-        when TOPO_TRIA {}
+        //when TOPO_TRIA {}
         when TOPO_QUAD
         {
           var spCnt : int = (interpOrder+1)**2;
@@ -292,47 +403,129 @@ module Interpolation
 
           for cellNode in 1..nodeCnt
           {
-            var  xiFP : real;
-            var etaFP : real;
+            var  xiNode : real;
+            var etaNode : real;
 
             select cellNode
             {
               when 1
               {
-                xiFP  = nodeDistLine[1];
-                etaFP = nodeDistLine[1];
+                xiNode  = nodeDistLine[1];
+                etaNode = nodeDistLine[1];
               }
               when 2
               {
-                xiFP  = nodeDistLine[2];
-                etaFP = nodeDistLine[1];
+                xiNode  = nodeDistLine[2];
+                etaNode = nodeDistLine[1];
               }
               when 3
               {
-                xiFP  = nodeDistLine[2];
-                etaFP = nodeDistLine[2];
+                xiNode  = nodeDistLine[2];
+                etaNode = nodeDistLine[2];
               }
               when 4
               {
-                xiFP  = nodeDistLine[1];
-                etaFP = nodeDistLine[2];
+                xiNode  = nodeDistLine[1];
+                etaNode = nodeDistLine[2];
               }
             }
 
-            for sp in 1..spCnt
+            for spIdx in 1..spCnt
             {
-              var i : int = (sp-1)%(interpOrder+1)+1;
-              var j : int = (sp-1)/(interpOrder+1)+1;
+              var i : int = (spIdx-1)%(interpOrder+1)+1;
+              var j : int = (spIdx-1)/(interpOrder+1)+1;
 
-              sp2nodeInterp[(cellTopo, interpOrder)]!.coefs[cellNode, sp] = eval_LagrangePoly1D( xiFP, i, spDistLine)
-                                                                           *eval_LagrangePoly1D(etaFP, j, spDistLine);
+              sp2nodeInterp[(cellTopo, interpOrder)]!.coefs[cellNode, spIdx] = eval_LagrangePoly1D( xiNode, i, spDistLine)
+                                                                              *eval_LagrangePoly1D(etaNode, j, spDistLine);
             }
           }
         }
-        when TOPO_TETR {}
-        when TOPO_PYRA {}
-        when TOPO_PRIS {}
-        when TOPO_HEXA {}
+        //when TOPO_TETR {}
+        //when TOPO_PYRA {}
+        //when TOPO_PRIS {}
+        when TOPO_HEXA
+        {
+          var spCnt : int = (interpOrder+1)**3;
+          var nodeCnt : int = 8;//elem_vertices(cellTopo);
+
+          sp2nodeInterp[(cellTopo, interpOrder)] = new interpolation_coefficients_t({1..nodeCnt, 1..spCnt})!;
+
+          // Need to build an appropriate way to query the point location for each element.
+          // Initially assume the whole mesh uses the same base distribution specified in input file.
+          // Even more initially assume the whole mesh has SPs on Legendre roots.
+          var spDistLine : [1..interpOrder+1] real = nodes_legendre_gauss(interpOrder+1);
+          var nodeDistLine : [1..2] real = [-1.0, 1.0];
+
+          for cellNode in 1..nodeCnt
+          {
+            var   xiNode : real;
+            var  etaNode : real;
+            var zetaNode : real;
+
+            select cellNode
+            {
+              when 1
+              {
+                xiNode   = nodeDistLine[1];
+                etaNode  = nodeDistLine[1];
+                zetaNode = nodeDistLine[1];
+              }
+              when 2
+              {
+                xiNode   = nodeDistLine[2];
+                etaNode  = nodeDistLine[1];
+                zetaNode = nodeDistLine[1];
+              }
+              when 3
+              {
+                xiNode   = nodeDistLine[2];
+                etaNode  = nodeDistLine[2];
+                zetaNode = nodeDistLine[1];
+              }
+              when 4
+              {
+                xiNode   = nodeDistLine[1];
+                etaNode  = nodeDistLine[2];
+                zetaNode = nodeDistLine[1];
+              }
+              when 5
+              {
+                xiNode   = nodeDistLine[1];
+                etaNode  = nodeDistLine[1];
+                zetaNode = nodeDistLine[2];
+              }
+              when 6
+              {
+                xiNode   = nodeDistLine[2];
+                etaNode  = nodeDistLine[1];
+                zetaNode = nodeDistLine[2];
+              }
+              when 7
+              {
+                xiNode   = nodeDistLine[2];
+                etaNode  = nodeDistLine[2];
+                zetaNode = nodeDistLine[2];
+              }
+              when 9
+              {
+                xiNode   = nodeDistLine[1];
+                etaNode  = nodeDistLine[2];
+                zetaNode = nodeDistLine[2];
+              }
+            }
+
+            for spIdx in 1..spCnt
+            {
+              var i : int = 1 + ( (spIdx-1)/(interpOrder+1)**0 ) %(interpOrder+1);
+              var j : int = 1 + ( (spIdx-1)/(interpOrder+1)**1 ) %(interpOrder+1);
+              var k : int = 1 + ( (spIdx-1)/(interpOrder+1)**2 ) %(interpOrder+1);
+
+              sp2nodeInterp[(cellTopo, interpOrder)]!.coefs[cellNode, spIdx] = eval_LagrangePoly1D(  xiNode, i, spDistLine)
+                                                                              *eval_LagrangePoly1D( etaNode, j, spDistLine)
+                                                                              *eval_LagrangePoly1D(zetaNode, k, spDistLine);
+            }
+          }
+        }
         otherwise do writeln("Unsupported mesh element found at interpolation initialization.");
       }
     }
@@ -407,7 +600,7 @@ module Interpolation
     //  xi : Array of all the interpolation nodes coordinates
 
     var evalDLagrangeDx : real = 0.0;
-    var xiSliced : [xi.domain.low.. #(xi.size-1)] real;
+    var xiSliced : [xi.domain.low..xi.domain.high-1] real;
 
     // Populate xiSliced with all nodes except the k-th
     for i in xiSliced.domain do
@@ -443,7 +636,7 @@ module Interpolation
     return evalDLagrangeDxArray;
   }
 
-  proc eval_D2LagrangeDx2(x : real, k : int, xi : real) : real
+  proc eval_D2LagrangeDx2(x : real, k : int, xi : [] real) : real
   {
     // Evaluate the second derivative of the k-th basis vector of the 1D Lagrange basis defined by the set of nodes xi[]
     // at the point x.
@@ -462,7 +655,7 @@ module Interpolation
     //  xi : Array of all the interpolation nodes coordinates
 
     var evalD2LagrangeDx2 : real = 0.0;
-    var xiSliced : [xi.domain.low.. #(xi.size-1)] real;
+    var xiSliced : [xi.domain.low..xi.domain.high-1] real;
 
     // Populate xiSliced with all nodes except the k-th
     for i in xiSliced.domain do
@@ -471,9 +664,13 @@ module Interpolation
       else
         xiSliced[i] = xi[i+1];
 
-    for l in xi.domain do
-      if l != k then
-        evalD2LagrangeDx2 += eval_DLagrangeDx(x, k, xiSliced) / (xi(k)-xi(l));
+    for i in xiSliced.domain do
+    {
+      var aux = xiSliced[i];
+      xiSliced[i] = xi[k];
+      evalD2LagrangeDx2 += eval_DLagrangeDx(x, i, xiSliced) / (xiSliced(i)-aux);
+      xiSliced[i] = aux;
+    }
 
     return evalD2LagrangeDx2;
   }
@@ -521,208 +718,171 @@ module Interpolation
     var randStream = new RandomStream(real);
     var randStreamSeeded = new RandomStream(real, RANDOM_SEED);
 
-    var interpolation : real;
-    var interpDeriv   : real;
-    var node          : [0..9] real;
-    var x             : [0..9] real;
-    var y_node        : [0..9] real = 0;
-    var y_x           : [0..9] real = 0;
-    var coef          : [0..9] real;
-    var basis         : [0..9, 0..9] real;
-    var basisDeriv    : [0..9, 0..9] real;
+    // Test the primitive Lagrange functions
+    {
+      // Define test parameters
+      var minDegree : int = 0;
+      var maxDegree : int = 9;
 
-    writeln();
+      for interpDegree in minDegree..maxDegree
+      {
+        writef("Degree %2i test:\n", interpDegree);
 
-    // Get Chebyshev roots to use as interpolation nodes
-    node = nodes_legendre_gauss(10);
-    writeln("Interpolation nodes (Legendre-Gauss):         ", node);
-    for i in 0..9 do
-      node[i] = -cos( half_pi * (2*i+1)/10 );
-    writeln("Normalized interpolation nodes [-1.0 to 1.0]: ", node);
-    writeln();
+        // Generate test polynomials by randomizing the coefficients if the canonical form
+        var coef : [0..interpDegree] real;
+        randStreamSeeded.fillRandom(coef);
+        write("Test Poly:  ");
+        for idx in coef.domain do
+          writef(" %{+.4dr}*x^%i", coef[idx], idx);
+        writeln();
 
-    // Get random interpolation targets [-1.0, 1.0] and random polynomials
-    x[0] = 0;
-    x[9] = 1;
-    randStreamSeeded.fillRandom(x[1..8]);
-    randStreamSeeded.fillRandom(coef);
-    x = 2.0*x-1.0;
-    coef = 2.0*coef -1.0;
-    writeln("Interpolation Targets   = ", x);
-    writeln("Polynomial Coefficients = ", coef);
-    writeln();
+        // Generate a random set of interpolation nodes
+        var gaussNodes : [0..interpDegree] real = nodes_legendre_gauss(interpDegree+1);
+        var randNodes : [0..interpDegree] real;
+        randStreamSeeded.fillRandom(randNodes);
+        write("Gauss Nodes: ");
+        for idx in gaussNodes.domain do
+          writef(" %{ .4dr}", gaussNodes[idx]);
+        writeln();
+        write("Rand Nodes:  ");
+        for idx in randNodes.domain do
+          writef(" %{ .4dr}", randNodes[idx]);
+        writeln();
 
-    // Create a set with the cell topologies contained in the hypothetical test mesh
+        // Evaluate the test polynomial at the interpolation nodes
+        var interpPolyGauss : [0..interpDegree] real = 0;
+        var interpPolyRand  : [0..interpDegree] real = 0;
+        for nodeIdx in gaussNodes.domain do
+          for deg in 0..interpDegree do
+            interpPolyGauss[nodeIdx] += coef[deg]*gaussNodes[nodeIdx]**deg;
+        for nodeIdx in randNodes.domain do
+          for deg in 0..interpDegree do
+            interpPolyRand[nodeIdx] += coef[deg]*randNodes[nodeIdx]**deg;
+
+        // Get a random coordinate and evaluate the test polynomial at it
+        var xTest : real = randStreamSeeded.getNext();
+        var yDirect : real = 0;
+        var dydxDirect : real = 0;
+        var d2ydx2Direct : real = 0;
+        for deg in 0..interpDegree do
+          yDirect += coef[deg]*xTest**deg;
+        for deg in 1..interpDegree do
+          dydxDirect += deg*coef[deg]*xTest**(deg-1);
+        for deg in 2..interpDegree do
+          d2ydx2Direct += deg*(deg-1)*coef[deg]*xTest**(deg-2);
+
+        // Interpolate the polynomial to the test coordinate
+        var yInterpGauss : real = 0;
+        var yInterpRand  : real = 0;
+        for nodeIdx in gaussNodes.domain do
+          yInterpGauss += interpPolyGauss[nodeIdx]*eval_LagrangePoly1D(xTest, nodeIdx, gaussNodes);
+        for nodeIdx in randNodes.domain do
+          yInterpRand  += interpPolyRand[nodeIdx]*eval_LagrangePoly1D(xTest, nodeIdx, randNodes);
+
+        // Interpolate the first derivative to the test coordinate
+        var dydxInterpGauss : real = 0;
+        var dydxInterpRand  : real = 0;
+        for nodeIdx in gaussNodes.domain do
+          dydxInterpGauss += interpPolyGauss[nodeIdx]*eval_DLagrangeDx(xTest, nodeIdx, gaussNodes);
+        for nodeIdx in randNodes.domain do
+          dydxInterpRand  += interpPolyRand[nodeIdx]*eval_DLagrangeDx(xTest, nodeIdx, randNodes);
+
+        // Interpolate the second derivative to the test coordinate
+        var d2ydx2InterpGauss : real = 0;
+        var d2ydx2InterpRand  : real = 0;
+        for nodeIdx in gaussNodes.domain do
+          d2ydx2InterpGauss += interpPolyGauss[nodeIdx]*eval_D2LagrangeDx2(xTest, nodeIdx, gaussNodes);
+        for nodeIdx in randNodes.domain do
+          d2ydx2InterpRand  += interpPolyRand[nodeIdx]*eval_D2LagrangeDx2(xTest, nodeIdx, randNodes);
+
+        // Core Functions
+        // Evaluate the 'k'-th component of the basis defined by the 'xi' interpolation nodes at the point 'x'
+        //eval_LagrangePoly1D(x : real, k : int, xi : [] real)
+        //eval_DLagrangeDx(x : real, k : int, xi : [] real)
+        //eval_D2LagrangeDx2(x : real, k : int, xi : real)
+
+        // Compare interpolated polynomial to direct evaluation of the test polynomial
+        writef("Gauss Nodes: x=%.4dr, yDirect=%.8dr, yInterp=%.8dr, Abs Error=%.4er, Rel Error=%.4er\n",
+            xTest, yDirect, yInterpGauss, abs(yDirect-yInterpGauss), abs((yDirect-yInterpGauss)/yDirect));
+        writef("Rand  Nodes: x=%.4dr, yDirect=%.8dr, yInterp=%.8dr, Abs Error=%.4er, Rel Error=%.4er\n",
+            xTest, yDirect, yInterpRand, abs(yDirect-yInterpRand), abs((yDirect-yInterpRand)/yDirect));
+        writef("Gauss Nodes: x=%.4dr, dydxDirect=%.8dr, dydxInterp=%.8dr, Abs Error=%.4er, Rel Error=%.4er\n",
+            xTest, dydxDirect, dydxInterpGauss, abs(dydxDirect-dydxInterpGauss), abs((dydxDirect-dydxInterpGauss)/dydxDirect));
+        writef("Rand  Nodes: x=%.4dr, dydxDirect=%.8dr, dydxInterp=%.8dr, Abs Error=%.4er, Rel Error=%.4er\n",
+            xTest, dydxDirect, dydxInterpRand, abs(dydxDirect-dydxInterpRand), abs((dydxDirect-dydxInterpRand)/dydxDirect));
+        writef("Gauss Nodes: x=%.4dr, d2ydx2Direct=%.8dr, d2ydx2Interp=%.8dr, Abs Error=%.4er, Rel Error=%.4er\n",
+            xTest, d2ydx2Direct, d2ydx2InterpGauss, abs(d2ydx2Direct-d2ydx2InterpGauss), abs((d2ydx2Direct-d2ydx2InterpGauss)/d2ydx2Direct));
+        writef("Rand  Nodes: x=%.4dr, d2ydx2Direct=%.8dr, d2ydx2Interp=%.8dr, Abs Error=%.4er, Rel Error=%.4er\n",
+            xTest, d2ydx2Direct, d2ydx2InterpRand, abs(d2ydx2Direct-d2ydx2InterpRand), abs((d2ydx2Direct-d2ydx2InterpRand)/d2ydx2Direct));
+        writeln();
+
+        // Multi Dimensional versions
+        //eval_LagrangePoly2D(x : [1..2] real, k : [1,.2] int, xi : [] real, eta : [] real)
+        //eval_LagrangePoly3D(x : [1..3] real, k : [1..2] int, xi : [] real, eta : [] real, zeta : [] real)
+
+        // Array versions
+        //eval_LagrangePoly1D_array(x : real, xi : [] real)
+        //eval_DLagrangeDx_array(x : real, xi : [] real)
+        //eval_D2LagrangeDx2_array(x : real, k : int, xi : real)
+      }
+    }
+
+    // Define FR parameters
+    var minDegree : int = 0;
+    var maxDegree : int = 9;
     var cellTopos : set(int);
     cellTopos.add(TOPO_LINE);
     cellTopos.add(TOPO_QUAD);
+    cellTopos.add(TOPO_HEXA);
 
-    // Cycle through supported mesh element topologies
-    for elemTopo in cellTopos
-    {
-      // Generate a random n-th degree test polynomial
-      // Evaluate the test polynomial at the SPs
-      // Interpolate the solution at the FPs
-      // Evaluate the test polynomial at the FPs and compare the values
-    }
-
-    // Calculate the Lagrange Basis
-    writeln("Interpolation Basis");
-    for i in 0..9 {
-      basis[i,..] = eval_LagrangePoly1D_array(x[i], node);
-      writef("For x_%i = %7.4dr : %.4t\n", i, x[i], basis[i,..]);
-    }
-    writeln();
-
-    for i in 0..9 {
-      for j in 0..9 do
-        y_node[j] += (coef[i]) * (node[j] ** i);
-      for j in 0..9 {
-        y_x[j] += (coef[i]) * (x[j] ** i);
-        interpolation = 0.0;
-        for k in 0..9 do
-          interpolation += basis[j,k]*y_node[k];
-        writef( "y_%i (%7.4dr): %7.4dr   Interpolation: %7.4dr   Error: %10.3er   Relative: %10.3er\n", i, x[j], y_x[j],
-            interpolation, error(y_x(j), interpolation), relative_error(y_x(j), interpolation) );
-      }
-      writeln();
-    }
-
-    // Calculate the Lagrange Derivative Basis
-    writeln("Interpolation Derivative Basis");
-    for i in 0..9 {
-      basisDeriv[i,..] = eval_DLagrangeDx_array(x[i], node);
-      writef("For x_%i = %7.4dr : %.4t", i, x[i], basisDeriv[i,..]);
-    }
-    writeln();
-
-    y_node = 0.0;
-    y_x = 0.0;
-    for i in 0..9 {
-      for j in 0..9 do
-        y_node[j] += (coef[i]) * (node[j] ** i);
-      for j in 0..9 {
-        y_x[j] += (i:real * coef[i]) * (x[j] ** (i-1));
-        interpDeriv = 0.0;
-        for k in 0..9 do
-          interpDeriv += basisDeriv[j,k]*y_node[k];
-        writef( "y_%i' (%7.4dr): %7.4dr   Interpolation Deriv: %7.4dr   Error: %10.3er   Relative: %10.3er\n", i, x[j], y_x[j],
-            interpDeriv, error(y_x(j), interpDeriv), relative_error(y_x(j), interpDeriv) );
-      }
-      writeln();
-    }
-
-    var minOrder : int = 0;
-    var maxOrder : int = 9;
-
-    // Calculate the FR structures
-    writeln();
-    writeln("Interpolation initialized structure for FR (sp2fpInterp):");
-    writeln();
-
-    init_sp2fpInterp(minOrder, maxOrder, cellTopos);
-    writeln(sp2fpInterp);
-    writeln();
-
-    writeln();
-    writeln("Interpolation derivative initialized structure for FR (sp2spDeriv):");
-    writeln();
-
-    init_sp2spDeriv(minOrder, maxOrder, cellTopos);
-    writeln(sp2spDeriv);
-    writeln();
-
-    writeln();
-    writeln("Node interpolation initialized structure for FR (sp2nodeInterp):");
-    writeln();
-
-    init_sp2nodeInterp(minOrder, maxOrder, cellTopos);
-    writeln(sp2nodeInterp);
-    writeln();
+    // Initialize the FR structures
+    init_sp2fpInterp(  minDegree, maxDegree, cellTopos);
+    init_sp2spDeriv(   minDegree, maxDegree, cellTopos);
+    init_sp2nodeInterp(minDegree, maxDegree, cellTopos);
 
     // Test the FR structures
-    writeln();
-    writeln("Testing the interpolation structure for FR(sp2fpInterp):");
-    writeln();
-    for interpOrder in minOrder..maxOrder
     {
-      var fpCnt : int = 2;
-      var spCnt : int = interpOrder+1;
+      //// Generate test polynomials by randomizing the coefficients if the canonical form
+      //var coef : [0..maxDegree, 0..maxDegree, 0..maxDegree] real;
+      //randStreamSeeded.fillRandom(coef);
 
-      // Interpolation abscissa
-      var spLoc : [1..spCnt] real = nodes_legendre_gauss(interpOrder+1);
-      // Interpolation targets
-      var fpLoc : [1..fpCnt] real = [-1.0, 1.0];
+      //writeln();
+      //writeln("Testing sp2fpInterp");
+      //writeln();
+      //for cellTopo in cellTopos do
+      //  for interpDegree in minDegree..maxDegree
+      //  {
+      //    // Generate a set of SP coordinates
+      //    var xyzSP : [1..3, 1..n_cell_sps(cellTopo, interpDegree)] real;
+      //    for i in 1..
 
-      // Generate random polynomial of degree interpOrder
-      var coef : [0..interpOrder] real;
-      randStreamSeeded.fillRandom(coef);
-      coef = 2.0*coef -1.0;
+      //    // Evaluate the test polynomial at the interpolation nodes
+      //    var solSP : [1..n_cell_sps(cellTopo, interpDegree)] real;
+      //    for sol in solSP
+      //    {
+      //      sol = xyzSP * coef;
+      //    }
 
-      // Function evaluated at interpolation abscissa
-      var yDirectSP : [1..spCnt] real = 0.0;
-      for spIdx in spLoc.domain do
-        for k in coef.domain do
-          yDirectSP[spIdx] += coef[k] * spLoc[spIdx]**k;
+      //    // Get a random coordinate and evaluate the test polynomial at it
+      //    // Interpolate the polynomial to the test coordinate
+      //    // Interpolate the first derivative to the test coordinate
+      //  }
 
-      for fpIdx in fpLoc.domain
-      {
-        // Calculate values of this polynomial at the interpolation abscissa
-        var yDirectFP : real = 0.0;
-        var yInterpFP : real = 0.0;
+      //writeln();
+      //writeln("Testing sp2spDeriv");
+      //writeln();
+      //for cellTopo in cellTopos do
+      //  for interpOrder in minOrder..maxOrder
+      //  {
+      //  }
 
-        for k in coef.domain
-        {
-          yDirectFP += coef[k] * fpLoc[fpIdx]**k;
-          yInterpFP += sp2fpInterp[(2, interpOrder)]!.coefs[fpIdx, k+1] * yDirectSP[k+1];
-        }
-
-        writef("Degree %2i interpolation | y(%7.4dr) = %7.4dr | interp(%7.4dr) = %7.4dr | Abs Erro = %10.3er | Rel Error = %10.3er\n",
-            interpOrder, fpLoc[fpIdx], yDirectFP, fpLoc[fpIdx], yInterpFP,
-            error(yDirectFP, yInterpFP), relative_error(yDirectFP, yInterpFP));
-      }
-      writeln();
-    }
-
-    writeln();
-    writeln("Testing the interpolation derivative structure for FR(sp2spDeriv):");
-    writeln();
-    for interpOrder in minOrder..maxOrder
-    {
-      var spCnt : int = interpOrder+1;
-
-      // Interpolation abscissa
-      var spLoc : [1..spCnt] real = nodes_legendre_gauss(interpOrder+1);
-
-      // Generate random polynomial of degree interpOrder
-      var coef : [0..interpOrder] real;
-      randStreamSeeded.fillRandom(coef);
-      coef = 2.0*coef -1.0;
-
-      // Function evaluated at interpolation abscissa
-      var yDirectSP : [1..spCnt] real = 0.0;
-      for spIdx in spLoc.domain do
-        for k in coef.domain do
-          yDirectSP[spIdx] += coef[k] * spLoc[spIdx]**k;
-
-      for spIdx in spLoc.domain
-      {
-        // Calculate values of this polynomial at the interpolation abscissa
-        var dyDirectSP : real = 0.0;
-        var dyInterpSP : real = 0.0;
-
-        for k in coef.domain
-        {
-          if k != 0 then
-            dyDirectSP += k * coef[k] * spLoc[spIdx]**(k-1);
-          dyInterpSP += sp2spDeriv[(2, interpOrder)]!.coefs[spIdx, 1, k+1] * yDirectSP[k+1];
-        }
-
-        writef("Degree %2i interpolation | y(%7.4dr) = %6.4dr | interp(%7.4dr) = %7.4dr | Abs Erro = %10.3er | Rel Error = %10.3er\n",
-            interpOrder, spLoc[spIdx], dyDirectSP, spLoc[spIdx], dyInterpSP,
-            error(dyDirectSP, dyInterpSP), relative_error(dyDirectSP, dyInterpSP));
-      }
-      writeln();
+      //writeln();
+      //writeln("Testing sp2nodeInterp");
+      //writeln();
+      //for cellTopo in cellTopos do
+      //  for interpOrder in minOrder..maxOrder
+      //  {
+      //  }
     }
   }
 }

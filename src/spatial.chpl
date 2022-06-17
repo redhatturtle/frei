@@ -1,4 +1,5 @@
-module Spatial {
+module Spatial
+{
   proc residue {
     // Interpolate solution from SPs to FPs
     //interpolate_solution_from_sps_to_fps

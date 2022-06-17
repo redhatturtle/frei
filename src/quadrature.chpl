@@ -68,7 +68,25 @@ module Quadrature
         when TOPO_TETR {}
         when TOPO_PYRA {}
         when TOPO_PRIS {}
-        when TOPO_HEXA {}
+        when TOPO_HEXA
+        {
+          var nodeCnt : int = (quadratureDegree+1)**3;
+
+          quadratureWeights[(elemTopo, quadratureDegree)] = new quadrature_weights_t({1..nodeCnt})!;
+
+          //for (i,j,k) in 
+          //  quadratureWeights[(elemTopo, quadratureDegree)]!.weights[] =
+          //    weights_legendre_gauss(quadratureDegree+1)[i]
+          //   *weights_legendre_gauss(quadratureDegree+1)[j]
+          //   *weights_legendre_gauss(quadratureDegree+1)[k]
+
+          quadratureWeights[(elemTopo, quadratureDegree)]!.weights = reshape(
+              outer(weights_legendre_gauss(quadratureDegree+1),
+                    reshape(outer(weights_legendre_gauss(quadratureDegree+1),
+                                  weights_legendre_gauss(quadratureDegree+1)),
+                            {1..(quadratureDegree)**2} )),
+              {1..nodeCnt});
+        }
         otherwise do writeln("Unsupported mesh element found at quadrature initialization.");
       }
     }

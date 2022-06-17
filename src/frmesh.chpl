@@ -1,4 +1,5 @@
-module FRMesh {
+module FRMesh
+{
   use Gmesh;
   use Input;
   use Mesh;
@@ -90,24 +91,36 @@ module FRMesh {
           {
             // Increment cell count with new element
             this.nCells += 1;
+
             // Resize domain to expand the array
             this.cellList_d = {1..this.nCells};
+
+            // Get the conversion table between Gmsh and Frei node ordering for this element type
+            var nodeMap = elem_nodes_frei2gmsh(gmesh.elements[element].elemType);
+
             // Fill up the cell properties. Maybe this should be an initializer?
             this.cellList[this.nCells].nodes_d  = gmesh.elements[element].nodes_d;
-            this.cellList[this.nCells].nodes    = gmesh.elements[element].nodes;
-            this.cellList[this.nCells].elemType = elem_type_gmsh2mesh(gmesh.elements[element].elemType);
+            for freiNodeIdx in this.cellList[this.nCells].nodes_d do
+              this.cellList[this.nCells].nodes[freiNodeIdx] = gmesh.elements[element].nodes[nodeMap[freiNodeIdx]];
+            this.cellList[this.nCells].elemType = elem_type_gmsh2frei(gmesh.elements[element].elemType);
             this.cellList[this.nCells].family   = elemFamlIdx;
           }
           when bocoDim
           {
             // Increment boco count with new element
             this.nBocos += 1;
+
             // Resize domain to expand the array
             this.bocoList_d = {1..this.nBocos};
+
+            // Get the conversion table between Gmsh and Frei node ordering for this element type
+            var nodeMap = elem_nodes_frei2gmsh(gmesh.elements[element].elemType);
+
             // Fill up the boco properties. Maybe this should be an initializer?
             this.bocoList[this.nBocos].nodes_d  = gmesh.elements[element].nodes_d;
-            this.bocoList[this.nBocos].nodes    = gmesh.elements[element].nodes;
-            this.bocoList[this.nBocos].elemType = elem_type_gmsh2mesh(gmesh.elements[element].elemType);
+            for freiNodeIdx in this.cellList[this.nCells].nodes_d do
+              this.cellList[this.nCells].nodes[freiNodeIdx] = gmesh.elements[element].nodes[nodeMap[freiNodeIdx]];
+            this.bocoList[this.nBocos].elemType = elem_type_gmsh2frei(gmesh.elements[element].elemType);
             this.bocoList[this.nBocos].family   = elemFamlIdx;
           }
           otherwise do
@@ -163,12 +176,10 @@ module FRMesh {
         faceMap_d.add(sort_tuple(faceVerts[1]));
         faceMap[sort_tuple(faceVerts[1])] = this.nFaces;
 
-        // Fill up the face properties. First cell to contain a face is put of the right side of the face.
-        this.faceList[this.nFaces].cells[2] = -boco;
-        this.faceList[this.nFaces].elemType = this.bocoList[boco].elemType;
-
         // Fill the right side neighbor ID, boundaries are always on the right side of a face.
         // Boundaries have negative indexes so they can be easily distinguished from mesh cells.
+        this.faceList[this.nFaces].cells[2] = -boco;
+        this.faceList[this.nFaces].elemType = this.bocoList[boco].elemType;
         this.bocoList[boco].face = this.nFaces;
       }
 
@@ -242,14 +253,14 @@ module FRMesh {
                             this.cellList[cellIdx].nodes[2]);
             faceVerts[2] = (this.cellList[cellIdx].nodes[1], this.cellList[cellIdx].nodes[2], this.cellList[cellIdx].nodes[6],
                             this.cellList[cellIdx].nodes[5]);
-            faceVerts[3] = (this.cellList[cellIdx].nodes[2], this.cellList[cellIdx].nodes[3], this.cellList[cellIdx].nodes[7],
-                            this.cellList[cellIdx].nodes[6]);
-            faceVerts[4] = (this.cellList[cellIdx].nodes[3], this.cellList[cellIdx].nodes[4], this.cellList[cellIdx].nodes[8],
-                            this.cellList[cellIdx].nodes[7]);
-            faceVerts[5] = (this.cellList[cellIdx].nodes[1], this.cellList[cellIdx].nodes[5], this.cellList[cellIdx].nodes[8],
+            faceVerts[3] = (this.cellList[cellIdx].nodes[1], this.cellList[cellIdx].nodes[5], this.cellList[cellIdx].nodes[8],
                             this.cellList[cellIdx].nodes[4]);
-            faceVerts[6] = (this.cellList[cellIdx].nodes[5], this.cellList[cellIdx].nodes[6], this.cellList[cellIdx].nodes[7],
+            faceVerts[4] = (this.cellList[cellIdx].nodes[5], this.cellList[cellIdx].nodes[6], this.cellList[cellIdx].nodes[7],
                             this.cellList[cellIdx].nodes[8]);
+            faceVerts[5] = (this.cellList[cellIdx].nodes[4], this.cellList[cellIdx].nodes[8], this.cellList[cellIdx].nodes[7],
+                            this.cellList[cellIdx].nodes[3]);
+            faceVerts[6] = (this.cellList[cellIdx].nodes[2], this.cellList[cellIdx].nodes[3], this.cellList[cellIdx].nodes[7],
+                            this.cellList[cellIdx].nodes[6]);
           }
           otherwise {}
         }
@@ -265,10 +276,10 @@ module FRMesh {
             // Save the cell ID as the left neighbor of the face
             this.faceList[faceIdx].cells[1] = cellIdx;
 
-            // Fill face nodes fro mthe left neighbors so that face are consistently oriented
-            this.faceList[faceIdx].nodes_d = {1..elem_nodes(this.faceList[this.nFaces].elemType)};
+            // Fill face nodes from the left neighbors so that face are consistently oriented
+            this.faceList[faceIdx].nodes_d = {1..elem_nodes(this.faceList[faceIdx].elemType)};
             this.faceList[faceIdx].nodes   = this.cellList[cellIdx].nodes[elem_face_nodes(this.cellList[cellIdx].elemType,
-                                                                                              cellFaceIdx                    )];
+                                                                                          cellFaceIdx                    )];
 
             // Save the face index and the side of the face this cell is on to the cell record
             this.cellList[cellIdx].faces[cellFaceIdx] = faceIdx;
@@ -281,7 +292,7 @@ module FRMesh {
             this.nFaces += 1;
             this.faceList_d = {1..this.nFaces};
 
-            // Add the tuple if nodes that define this face to the map and save this face's face index
+            // Add the tuple of nodes that define this face to the map and save this face's index
             faceMap_d.add(sort_tuple(faceVerts[cellFaceIdx]));
             faceMap[sort_tuple(faceVerts[cellFaceIdx])] = this.nFaces;
 
@@ -295,7 +306,6 @@ module FRMesh {
           }
         }
       }
-      // Check if all faces have been correctly identified?
     }
 
     proc allocate_fr_vars()
@@ -448,25 +458,9 @@ module FRMesh {
     }
   }
 
-  proc determinant(metrics : [] real) : real
-  {
-    use LinearAlgebra;
-
-    var jacobian : real;
-
-    if metrics.size == 1 then
-      jacobian = metrics[1,1];
-    else if metrics.size == 4 then
-      jacobian = metrics[1,1]*metrics[2,2] - metrics[1,2]*metrics[2,1];
-    else if metrics.size == 9 then
-      jacobian = metrics[1,1]*(metrics[2,2]*metrics[3,3] - metrics[2,3]*metrics[3,2])
-                +metrics[1,2]*(metrics[2,3]*metrics[3,1] - metrics[2,1]*metrics[3,3])
-                +metrics[1,3]*(metrics[2,1]*metrics[3,2] - metrics[2,2]*metrics[3,1]);
-    else
-      jacobian = det(metrics);
-
-    return jacobian;
-  }
+  //////////////////////////////////////////////////////////
+  //  Frei mesh element inquiry functions                 //
+  //////////////////////////////////////////////////////////
 
   proc n_cell_sps(in elemTopo : int, in solOrder) : int
   {
@@ -516,6 +510,34 @@ module FRMesh {
       otherwise return -1;
     }
   }
+
+  //////////////////////////////////////////////////////////
+  //  Auxiliary Functions                                 //
+  //////////////////////////////////////////////////////////
+
+  proc determinant(metrics : [] real) : real
+  {
+    use LinearAlgebra;
+
+    var jacobian : real;
+
+    if metrics.size == 1 then
+      jacobian = metrics[1,1];
+    else if metrics.size == 4 then
+      jacobian = metrics[1,1]*metrics[2,2] - metrics[1,2]*metrics[2,1];
+    else if metrics.size == 9 then
+      jacobian = metrics[1,1]*(metrics[2,2]*metrics[3,3] - metrics[2,3]*metrics[3,2])
+                +metrics[1,2]*(metrics[2,3]*metrics[3,1] - metrics[2,1]*metrics[3,3])
+                +metrics[1,3]*(metrics[2,1]*metrics[3,2] - metrics[2,2]*metrics[3,1]);
+    else
+      jacobian = det(metrics);
+
+    return jacobian;
+  }
+
+  //////////////////////////////////////////////////////////
+  //  Module Test                                         //
+  //////////////////////////////////////////////////////////
 
   proc main()
   {

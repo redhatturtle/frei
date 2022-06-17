@@ -182,24 +182,36 @@ module Mesh
           {
             // Increment cell count with new element
             this.nCells += 1;
+
             // Resize domain to expand the array
             this.cellList_d = {1..this.nCells};
+
+            // Get the conversion table between Gmsh and Frei node ordering for this element type
+            var nodeMap = elem_nodes_frei2gmsh(gmesh.elements[element].elemType);
+
             // Fill up the cell properties. Maybe this should be an initializer?
             this.cellList[this.nCells].nodes_d  = gmesh.elements[element].nodes_d;
-            this.cellList[this.nCells].nodes    = gmesh.elements[element].nodes;
-            this.cellList[this.nCells].elemType = elem_type_gmsh2mesh(gmesh.elements[element].elemType);
+            for freiNodeIdx in this.cellList[this.nCells].nodes_d do
+              this.cellList[this.nCells].nodes[freiNodeIdx] = gmesh.elements[element].nodes[nodeMap[freiNodeIdx]];
+            this.cellList[this.nCells].elemType = elem_type_gmsh2frei(gmesh.elements[element].elemType);
             this.cellList[this.nCells].family   = elemFamlIdx;
           }
           when bocoDim
           {
             // Increment boco count with new element
             this.nBocos += 1;
+
             // Resize domain to expand the array
             this.bocoList_d = {1..this.nBocos};
+
+            // Get the conversion table between Gmsh and Frei node ordering for this element type
+            var nodeMap = elem_nodes_frei2gmsh(gmesh.elements[element].elemType);
+
             // Fill up the boco properties. Maybe this should be an initializer?
             this.bocoList[this.nBocos].nodes_d  = gmesh.elements[element].nodes_d;
-            this.bocoList[this.nBocos].nodes    = gmesh.elements[element].nodes;
-            this.bocoList[this.nBocos].elemType = elem_type_gmsh2mesh(gmesh.elements[element].elemType);
+            for freiNodeIdx in this.bocoList[this.nCells].nodes_d do
+              this.bocoList[this.nBocos].nodes[freiNodeIdx] = gmesh.elements[element].nodes[nodeMap[freiNodeIdx]];
+            this.bocoList[this.nBocos].elemType = elem_type_gmsh2frei(gmesh.elements[element].elemType);
             this.bocoList[this.nBocos].family   = elemFamlIdx;
           }
           otherwise do
@@ -247,59 +259,23 @@ module Mesh
         }
 
         // Create the face element on the face list
-        // Increment cell count with new element
+        // Increment the face counter with the new face and expand the face list domain
         this.nFaces += 1;
-        // Resize domain to expand the array
         this.faceList_d = {1..this.nFaces};
 
-        // Fill up the face properties. Maybe this should be an initializer?
-        select elem_topology(this.bocoList[boco].elemType)
-        {
-          when TOPO_NODE
-          {
-            this.faceList[this.nFaces].elemType = this.bocoList[boco].elemType;
-            this.faceList[this.nFaces].nodes_d = {1..1};
-            this.faceList[this.nFaces].nodes[1] = faceVerts[1][0];
-          }
-          when TOPO_LINE
-          {
-            this.faceList[this.nFaces].elemType = this.bocoList[boco].elemType;
-            this.faceList[this.nFaces].nodes_d = {1..2};
-            this.faceList[this.nFaces].nodes[1] = faceVerts[1][0];
-            this.faceList[this.nFaces].nodes[2] = faceVerts[1][1];
-          }
-          when TOPO_TRIA
-          {
-            this.faceList[this.nFaces].elemType = this.bocoList[boco].elemType;
-            this.faceList[this.nFaces].nodes_d = {1..3};
-            this.faceList[this.nFaces].nodes[1] = faceVerts[1][0];
-            this.faceList[this.nFaces].nodes[2] = faceVerts[1][1];
-            this.faceList[this.nFaces].nodes[3] = faceVerts[1][2];
-          }
-          when TOPO_QUAD
-          {
-            this.faceList[this.nFaces].elemType = this.bocoList[boco].elemType;
-            this.faceList[this.nFaces].nodes_d = {1..4};
-            this.faceList[this.nFaces].nodes[1] = faceVerts[1][0];
-            this.faceList[this.nFaces].nodes[2] = faceVerts[1][1];
-            this.faceList[this.nFaces].nodes[3] = faceVerts[1][2];
-            this.faceList[this.nFaces].nodes[4] = faceVerts[1][3];
-          }
-          otherwise {}
-        }
+        // Add the face vertices to the face matching list and store the face index given to this face.
+        faceMap_d.add(sort_tuple(faceVerts[1]));
+        faceMap[sort_tuple(faceVerts[1])] = this.nFaces;
 
         // Fill the right side neighbor ID, boundaries are always on the right side of a face.
         // Boundaries have negative indexes so they can be easily distinguished from mesh cells.
         this.faceList[this.nFaces].cells[2] = -boco;
+        this.faceList[this.nFaces].elemType = this.bocoList[boco].elemType;
         this.bocoList[boco].face = this.nFaces;
-
-        // Add the face nodes to the face matching list and store the face index given to this face.
-        faceMap_d.add(sort_tuple(faceVerts[1]));
-        faceMap[sort_tuple(faceVerts[1])] = this.nFaces;
       }
 
       // Add faces from cells to the face map and perform the matching
-      for cell in this.cellList_d
+      for cellIdx in this.cellList_d
       {
         // Allocate this cell's local face list
         this.cellList[cell].faces_d = {1..elem_faces(elem_topology(this.cellList[cell].elemType))};
@@ -368,14 +344,14 @@ module Mesh
                             this.cellList[cell].nodes[2]);
             faceVerts[2] = (this.cellList[cell].nodes[1], this.cellList[cell].nodes[2], this.cellList[cell].nodes[6],
                             this.cellList[cell].nodes[5]);
-            faceVerts[3] = (this.cellList[cell].nodes[2], this.cellList[cell].nodes[3], this.cellList[cell].nodes[7],
-                            this.cellList[cell].nodes[6]);
-            faceVerts[4] = (this.cellList[cell].nodes[3], this.cellList[cell].nodes[4], this.cellList[cell].nodes[8],
-                            this.cellList[cell].nodes[7]);
-            faceVerts[5] = (this.cellList[cell].nodes[1], this.cellList[cell].nodes[5], this.cellList[cell].nodes[8],
+            faceVerts[3] = (this.cellList[cell].nodes[1], this.cellList[cell].nodes[5], this.cellList[cell].nodes[8],
                             this.cellList[cell].nodes[4]);
-            faceVerts[6] = (this.cellList[cell].nodes[5], this.cellList[cell].nodes[6], this.cellList[cell].nodes[7],
+            faceVerts[4] = (this.cellList[cell].nodes[5], this.cellList[cell].nodes[6], this.cellList[cell].nodes[7],
                             this.cellList[cell].nodes[8]);
+            faceVerts[5] = (this.cellList[cell].nodes[4], this.cellList[cell].nodes[8], this.cellList[cell].nodes[7],
+                            this.cellList[cell].nodes[3]);
+            faceVerts[6] = (this.cellList[cell].nodes[2], this.cellList[cell].nodes[3], this.cellList[cell].nodes[7],
+                            this.cellList[cell].nodes[6]);
           }
           otherwise {}
         }
@@ -385,65 +361,39 @@ module Mesh
         {
           // Check if this face is already in the map
           if faceMap_d.contains(sort_tuple(faceVerts[cellFaceIdx]))
-          {
-            // This a mapped face! :D
+          { // This a mapped face! :D
+            var faceIdx : int = faceMap[sort_tuple(faceVerts[cellFaceIdx])];
 
-            // Save the face ID to the cell element
-            this.cellList[cell].faces[cellFaceIdx] = faceMap[sort_tuple(faceVerts[cellFaceIdx])];
-            // The second element to map to a face is always defined to be on the left side of the face
-            this.cellList[cell].sides[cellFaceIdx] = 1;
             // Save the cell ID as the left neighbor of the face
-            this.faceList[faceMap[sort_tuple(faceVerts[cellFaceIdx])]].cells[1] = cell;
+            this.faceList[faceIdx].cells[1] = cellIdx;
+
+            // Fill face nodes from the left neighbors so that face are consistently oriented
+            this.faceList[faceIdx].nodes_d = {1..elem_nodes(this.faceList[faceIdx].elemType)};
+            this.faceList[faceIdx].nodes   = this.cellList[cellIdx].nodes[elem_face_nodes(this.cellList[cellIdx].elemType,
+                                                                                          cellFaceIdx                    )];
+
+            // Save the face index and the side of the face this cell is on to the cell record
+            this.cellList[cellIdx].faces[cellFaceIdx] = faceIdx;
+            this.cellList[cellIdx].sides[cellFaceIdx] = 1;
           }
           else
-          {
-            // This isn't a mapped face. But don't panic! D:
+          { // This isn't a mapped face. But don't panic! D:
 
-            // Increment cell count with new element
+            // Increment the face counter with the new face and expand the face list domain
             this.nFaces += 1;
-            // Resize domain to expand the array
             this.faceList_d = {1..this.nFaces};
 
-            // Save the face ID in the cell
-            this.cellList[cell].faces[cellFaceIdx] = this.nFaces;
-            // Save the side of the face this cell is on
-            this.cellList[cell].sides[cellFaceIdx] = 2;
-
-            // Fill up the face properties. Maybe this should be an initializer?
-            select elem_topology(this.cellList[cell].elemType)
-            {
-              when TOPO_LINE
-              {
-                this.faceList[this.nFaces].elemType = TYPE_NODE;
-                this.faceList[this.nFaces].nodes_d = {1..1};
-                this.faceList[this.nFaces].nodes[1] = faceVerts[cellFaceIdx][0];
-              }
-              when TOPO_TRIA
-              {
-                this.faceList[this.nFaces].elemType = TYPE_LINE_2;
-
-                // Reverse the order of the face nodes since this node set is from the right side cell
-                this.faceList[this.nFaces].nodes_d = {1..2};
-                this.faceList[this.nFaces].nodes[1] = faceVerts[cellFaceIdx][1];
-                this.faceList[this.nFaces].nodes[2] = faceVerts[cellFaceIdx][0];
-              }
-              when TOPO_QUAD
-              {
-                this.faceList[this.nFaces].elemType = TYPE_LINE_2;
-
-                // Reverse the order of the face nodes since this node set is from the right side cell
-                this.faceList[this.nFaces].nodes_d = {1..2};
-                this.faceList[this.nFaces].nodes[1] = faceVerts[cellFaceIdx][1];
-                this.faceList[this.nFaces].nodes[2] = faceVerts[cellFaceIdx][0];
-              }
-              when TOPO_TETR {}
-              otherwise {}
-            }
-            this.faceList[this.nFaces].cells[2] = cell;
-
-            // Save nodes that define it in the map
+            // Add the tuple of nodes that define this face to the map and save this face's index
             faceMap_d.add(sort_tuple(faceVerts[cellFaceIdx]));
             faceMap[sort_tuple(faceVerts[cellFaceIdx])] = this.nFaces;
+
+            // Fill up the face properties. First cell to contain a face is put of the right side of the face.
+            this.faceList[this.nFaces].cells[2] = cellIdx;
+            this.faceList[this.nFaces].elemType = elem_face_type(this.cellList[cellIdx].elemType, cellFaceIdx);
+
+            // Save the face index and the side of the face this cell is on to the cell record
+            this.cellList[cell].faces[cellFaceIdx] = this.nFaces;
+            this.cellList[cell].sides[cellFaceIdx] = 2;
           }
         }
       }
@@ -554,49 +504,9 @@ module Mesh
     }
   }
 
-  proc elem_type_gmsh2mesh(in elemTypeGmsh : int) : int
-  {
-    use Parameters.ParamGmesh;
-    use Parameters.ParamMesh;
-
-    select elemTypeGmsh {
-      when GMESH_PNT_1   do return TYPE_NODE;
-      when GMESH_LIN_2   do return TYPE_LINE_2;
-      when GMESH_LIN_3   do return TYPE_LINE_3;
-      when GMESH_LIN_4   do return TYPE_LINE_4;
-      when GMESH_LIN_5   do return TYPE_LINE_5;
-      when GMESH_TRI_3   do return TYPE_TRIA_3;
-      when GMESH_TRI_6   do return TYPE_TRIA_6;
-      when GMESH_TRI_10  do return TYPE_TRIA_10;
-      when GMESH_TRI_15  do return TYPE_TRIA_15;
-      when GMESH_QUA_4   do return TYPE_QUAD_4;
-      when GMESH_QUA_9   do return TYPE_QUAD_9;
-      when GMESH_QUA_16  do return TYPE_QUAD_16;
-      when GMESH_QUA_25  do return TYPE_QUAD_25;
-      when GMESH_TET_4   do return TYPE_TETR_4;
-      when GMESH_TET_10  do return TYPE_TETR_10;
-      when GMESH_TET_20  do return TYPE_TETR_20;
-      when GMESH_TET_35  do return TYPE_TETR_35;
-      when GMESH_PYR_5   do return TYPE_PYRA_5;
-      when GMESH_PYR_14  do return TYPE_PYRA_14;
-      when GMESH_PYR_30  do return TYPE_PYRA_30;
-      when GMESH_PYR_55  do return TYPE_PYRA_55;
-      when GMESH_PRI_6   do return TYPE_PRIS_6;
-      when GMESH_PRI_18  do return TYPE_PRIS_18;
-      when GMESH_PRI_40  do return TYPE_PRIS_40;
-      when GMESH_PRI_75  do return TYPE_PRIS_75;
-      when GMESH_HEX_8   do return TYPE_HEXA_8;
-      when GMESH_HEX_27  do return TYPE_HEXA_27;
-      when GMESH_HEX_64  do return TYPE_HEXA_64;
-      when GMESH_HEX_125 do return TYPE_HEXA_125;
-      otherwise
-      {
-        writeln("Error converting element types from Gmesh to Native");
-        writeln("   Gmesh Type: ", elemTypeGmsh);
-        return -1;
-      }
-    }
-  }
+  //////////////////////////////////////////////////////////
+  //  Frei mesh element inquiry functions                 //
+  //////////////////////////////////////////////////////////
 
   proc elem_dimension(in elemTopo : int) : int
   {
@@ -785,8 +695,7 @@ module Mesh
   }
 
   proc elem_edges(in elemTopo : int) : int
-  {
-    // This will probably only be used in 3D meshes but is available for all element topologies for consistency
+  { // This will probably only be used in 3D meshes but is available for all element topologies for consistency
     use Parameters.ParamMesh;
 
     select elemTopo {
@@ -1173,6 +1082,160 @@ module Mesh
     return faceNodes;
   }
 
+  //////////////////////////////////////////////////////////
+  //  Translation functions - Gmsh to Native Mesh         //
+  //////////////////////////////////////////////////////////
+
+  proc elem_type_gmsh2frei(elemTypeGmsh : int) : int
+  {
+    use Parameters.ParamGmesh;
+    use Parameters.ParamMesh;
+
+    select elemTypeGmsh {
+      when GMESH_PNT_1   do return TYPE_NODE;
+      when GMESH_LIN_2   do return TYPE_LINE_2;
+      when GMESH_LIN_3   do return TYPE_LINE_3;
+      when GMESH_LIN_4   do return TYPE_LINE_4;
+      when GMESH_LIN_5   do return TYPE_LINE_5;
+      when GMESH_TRI_3   do return TYPE_TRIA_3;
+      when GMESH_TRI_6   do return TYPE_TRIA_6;
+      when GMESH_TRI_10  do return TYPE_TRIA_10;
+      when GMESH_TRI_15  do return TYPE_TRIA_15;
+      when GMESH_QUA_4   do return TYPE_QUAD_4;
+      when GMESH_QUA_9   do return TYPE_QUAD_9;
+      when GMESH_QUA_16  do return TYPE_QUAD_16;
+      when GMESH_QUA_25  do return TYPE_QUAD_25;
+      when GMESH_TET_4   do return TYPE_TETR_4;
+      when GMESH_TET_10  do return TYPE_TETR_10;
+      when GMESH_TET_20  do return TYPE_TETR_20;
+      when GMESH_TET_35  do return TYPE_TETR_35;
+      when GMESH_PYR_5   do return TYPE_PYRA_5;
+      when GMESH_PYR_14  do return TYPE_PYRA_14;
+      when GMESH_PYR_30  do return TYPE_PYRA_30;
+      when GMESH_PYR_55  do return TYPE_PYRA_55;
+      when GMESH_PRI_6   do return TYPE_PRIS_6;
+      when GMESH_PRI_18  do return TYPE_PRIS_18;
+      when GMESH_PRI_40  do return TYPE_PRIS_40;
+      when GMESH_PRI_75  do return TYPE_PRIS_75;
+      when GMESH_HEX_8   do return TYPE_HEXA_8;
+      when GMESH_HEX_27  do return TYPE_HEXA_27;
+      when GMESH_HEX_64  do return TYPE_HEXA_64;
+      when GMESH_HEX_125 do return TYPE_HEXA_125;
+      otherwise
+      {
+        writeln("Error converting element types from Gmesh to Native");
+        writeln("   Gmesh Type: ", elemTypeGmsh);
+        return -1;
+      }
+    }
+  }
+
+  proc elem_type_frei2gmsh(elemTypeFrei : int) : int
+  {
+    use Parameters.ParamGmesh;
+    use Parameters.ParamMesh;
+
+    select elemTypeFrei {
+      when TYPE_NODE     do return GMESH_PNT_1;
+      when TYPE_LINE_2   do return GMESH_LIN_2;
+      when TYPE_LINE_3   do return GMESH_LIN_3;
+      when TYPE_LINE_4   do return GMESH_LIN_4;
+      when TYPE_LINE_5   do return GMESH_LIN_5;
+      when TYPE_TRIA_3   do return GMESH_TRI_3;
+      when TYPE_TRIA_6   do return GMESH_TRI_6;
+      when TYPE_TRIA_10  do return GMESH_TRI_10;
+      when TYPE_TRIA_15  do return GMESH_TRI_15;
+      when TYPE_QUAD_4   do return GMESH_QUA_4;
+      when TYPE_QUAD_9   do return GMESH_QUA_9;
+      when TYPE_QUAD_16  do return GMESH_QUA_16;
+      when TYPE_QUAD_25  do return GMESH_QUA_25;
+      when TYPE_TETR_4   do return GMESH_TET_4;
+      when TYPE_TETR_10  do return GMESH_TET_10;
+      when TYPE_TETR_20  do return GMESH_TET_20;
+      when TYPE_TETR_35  do return GMESH_TET_35;
+      when TYPE_PYRA_5   do return GMESH_PYR_5;
+      when TYPE_PYRA_14  do return GMESH_PYR_14;
+      when TYPE_PYRA_30  do return GMESH_PYR_30;
+      when TYPE_PYRA_55  do return GMESH_PYR_55;
+      when TYPE_PRIS_6   do return GMESH_PRI_6;
+      when TYPE_PRIS_18  do return GMESH_PRI_18;
+      when TYPE_PRIS_40  do return GMESH_PRI_40;
+      when TYPE_PRIS_75  do return GMESH_PRI_75;
+      when TYPE_HEXA_8   do return GMESH_HEX_8;
+      when TYPE_HEXA_27  do return GMESH_HEX_27;
+      when TYPE_HEXA_64  do return GMESH_HEX_64;
+      when TYPE_HEXA_125 do return GMESH_HEX_125;
+      otherwise
+      {
+        writeln("Error converting element types from Frei to Gmsh");
+        writeln("   Frei Type: ", elemTypeFrei);
+        return -1;
+      }
+    }
+  }
+
+  proc elem_nodes_gmsh2frei(elemTypeFrei : int) : [] int
+  {
+    // Provide an array mapping the cell node index
+    //   - From Gmsh recursive indexing
+    //   - To native Frei indexing
+    use Parameters.ParamGmesh;
+    use Parameters.ParamMesh;
+
+    var gmsh2cartMap = elem_node_order_gmsh(elem_type_frei2gmsh(elemTypeFrei));
+    var frei2cartMap = elem_node_order(elemTypeFrei);
+
+    var cart2freiMap : [gmsh2cartMap.domain] int;
+    for freiNodeIdx in frei2cartMap.domain do
+      cart2freiMap[frei2cartMap[freiNodeIdx]] = freiNodeIdx;
+
+    var gmsh2freiMap : [gmsh2cartMap.domain] int;
+    for gmshNodeIdx in gmsh2cartMap.domain do
+      gmsh2freiMap[gmshNodeIdx] = cart2frei[gmsh2cartMap[gmshNodeIdx]];
+
+    return gmsh2freiMap;
+  }
+
+  proc elem_nodes_frei2gmsh(elemTypeGmsh : int) : [] int
+  {
+    // Provide an array mapping the cell node index
+    //   - From Gmsh recursive indexing
+    //   - To native Frei indexing
+    use Parameters.ParamGmesh;
+    use Parameters.ParamMesh;
+
+    var gmsh2cartMap = elem_node_order_gmsh(elemTypeGmsh);
+    var frei2cartMap = elem_node_order(elem_type_gmsh2frei(elemTypeGmsh));
+
+    var cart2gmshMap : [gmsh2cartMap.domain] int;
+    for gmshNodeIdx in gmsh2cartMap.domain do
+      cart2gmshMap[gmsh2cartMap[gmshNodeIdx]] = gmshNodeIdx;
+
+    var frei2gmshMap : [frei2cartMap.domain] int;
+    for freiNodeIdx in frei2cartMap.domain do
+      frei2gmshMap[freiNodeIdx] = cart2gmsh[frei2cartMap[freiNodeIdx]];
+
+    return frei2gmshMap;
+  }
+
+  //////////////////////////////////////////////////////////
+  //  Auxiliary Functions                                 //
+  //////////////////////////////////////////////////////////
+
+  proc sort_tuple(in tuple : 2*int) : 2*int
+  {
+    if tuple[0] < tuple[1] then tuple[0] <=> tuple[1];
+    return tuple;
+  }
+
+  proc sort_tuple(in tuple : 3*int) : 3*int
+  {
+    if tuple[0] < tuple[2] then tuple[0] <=> tuple[2];
+    if tuple[0] < tuple[1] then tuple[0] <=> tuple[1];
+    if tuple[1] < tuple[2] then tuple[1] <=> tuple[2];
+    return tuple;
+  }
+
   proc sort_tuple(in tuple : 4*int) : 4*int
   {
     if tuple[0] < tuple[2] then tuple[0] <=> tuple[2];
@@ -1182,6 +1245,10 @@ module Mesh
     if tuple[1] < tuple[2] then tuple[1] <=> tuple[2];
     return tuple;
   }
+
+  //////////////////////////////////////////////////////////
+  //  Module Test                                         //
+  //////////////////////////////////////////////////////////
 
   proc main()
   {
@@ -1208,5 +1275,21 @@ module Mesh
     writeln("Face counts:");
     writeln(test_mesh.face_count());
     writeln();
+
+    writeln("Test 4: Node Ordering on Gmsh Elements:");
+    writeln("Line q1: ", node_order_line_gmsh(1));
+    writeln("Line q2: ", node_order_line_gmsh(2));
+    writeln("Line q3: ", node_order_line_gmsh(3));
+    writeln("Line q4: ", node_order_line_gmsh(4));
+    writeln();
+    writeln("Quad q1: ", node_order_quad_gmsh(1));
+    writeln("Quad q2: ", node_order_quad_gmsh(2));
+    writeln("Quad q3: ", node_order_quad_gmsh(3));
+    writeln("Quad q4: ", node_order_quad_gmsh(4));
+    writeln();
+    writeln("Hexa q1: ", node_order_hexa_gmsh(1));
+    writeln("Hexa q2: ", node_order_hexa_gmsh(2));
+    writeln("Hexa q3: ", node_order_hexa_gmsh(3));
+    writeln("Hexa q4: ", node_order_hexa_gmsh(4));
   }
 }

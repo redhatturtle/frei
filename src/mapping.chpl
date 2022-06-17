@@ -88,7 +88,16 @@ module Mapping
         when TOPO_TETR {}
         when TOPO_PYRA {}
         when TOPO_PRIS {}
-        when TOPO_HEXA {}
+        when TOPO_HEXA
+        {
+          // Check if the element type has a complete set of nodes, is face defined or edge defined
+          // if (elemComplete == true)
+          {
+            // Assuming a Quad mesh element with a full set of nodes
+            // Assuming a tensor product SP set
+            mapping[(elemType, interpOrder)]!.coefs = mapping_hexa(elemType, interpOrder);
+          }
+        }
         otherwise
         {
           writeln("Unsupported mesh element found at element mapping initialization.");
@@ -173,9 +182,9 @@ module Mapping
     writef("    Initialized in  %6.1dr ms\n", stopwatch.elapsed(TimeUnits.milliseconds));
   }
 
-  //////////////////////////////
-  //  Build SP map for elem   //
-  //////////////////////////////
+  //////////////////////////////////////////////////////////
+  //  Build SP map for each element                       //
+  //////////////////////////////////////////////////////////
 
   /*
    Calculate mapping matrix for the interpolation points is a line element
@@ -253,14 +262,14 @@ module Mapping
     for ptIdx in 1..interpPtCnt
     {
       // Computational coordinate of the SP spIdx
-      var xi  : real = spLoc[(ptIdx-1)%(interpOrder+1)+1];
-      var eta : real = spLoc[(ptIdx-1)/(interpOrder+1)+1];
+      var xi  : real = spLoc[1 + (ptIdx-1)%(interpOrder+1)];
+      var eta : real = spLoc[1 + (ptIdx-1)/(interpOrder+1)];
 
       for nodeIdx in 1..elemNodeCnt
       {
         // Relative position of the mesh element's node
-        var i : int = (nodeOrder[nodeIdx]-1)%(elemDegree+1)+1;
-        var j : int = (nodeOrder[nodeIdx]-1)/(elemDegree+1)+1;
+        var i : int = 1 + (nodeOrder[nodeIdx]-1)%(elemDegree+1);
+        var j : int = 1 + (nodeOrder[nodeIdx]-1)/(elemDegree+1);
 
         mappingCoefs[ptIdx, nodeIdx] = eval_LagrangePoly1D(xi , i, nodeLoc)
                                       *eval_LagrangePoly1D(eta, j, nodeLoc);
@@ -291,7 +300,7 @@ module Mapping
     var elemDegree   : int = elem_degree(elemType);
 
     // Get the mesh element and interpolation nodes coordinates/distribution
-    var nodeLoc : [1..elemDegree+1]   real = nodes_uniform_lobatto(elemDegree+1);
+    var nodeLoc : [1..elemDegree+1]  real = nodes_uniform_lobatto(elemDegree+1);
     var spLoc   : [1..interpOrder+1] real = nodes_legendre_gauss(interpOrder+1);
 
     // Get the node ordering for this element type
@@ -301,21 +310,20 @@ module Mapping
     for ptIdx in 1..interpPtCnt
     {
       // Computational coordinate of the SP spIdx
-      //var rst[i] : real = spLoc[((ptIdx-1)/(interpOrder+1)**(i-1))%(interpOrder+1) + 1];
-      var xi   : real = spLoc[((ptIdx-1)/(interpOrder+1)**0)%(interpOrder+1) + 1];
-      var eta  : real = spLoc[((ptIdx-1)/(interpOrder+1)**1)%(interpOrder+1) + 1];
-      var zeta : real = spLoc[((ptIdx-1)/(interpOrder+1)**2)%(interpOrder+1) + 1];
+      var xi   : real = spLoc[1 + ((ptIdx-1)/(interpOrder+1)**0)%(interpOrder+1)];
+      var eta  : real = spLoc[1 + ((ptIdx-1)/(interpOrder+1)**1)%(interpOrder+1)];
+      var zeta : real = spLoc[1 + ((ptIdx-1)/(interpOrder+1)**2)%(interpOrder+1)];
 
       for nodeIdx in 1..elemNodeCnt
       {
         // Relative position of the mesh element's node
-        var i : int = ((nodeOrder[nodeIdx]-1)/(interpOrder+1)**0)%(elemDegree+1)+1;
-        var j : int = ((nodeOrder[nodeIdx]-1)/(interpOrder+1)**1)%(elemDegree+1)+1;
-        var k : int = ((nodeOrder[nodeIdx]-1)/(interpOrder+1)**2)%(elemDegree+1)+1;
+        var i : int = 1 + ((nodeOrder[nodeIdx]-1)/(interpOrder+1)**0)%(elemDegree+1);
+        var j : int = 1 + ((nodeOrder[nodeIdx]-1)/(interpOrder+1)**1)%(elemDegree+1);
+        var k : int = 1 + ((nodeOrder[nodeIdx]-1)/(interpOrder+1)**2)%(elemDegree+1);
 
-        mappingCoefs[1, ptIdx, nodeIdx] = eval_LagrangePoly1D(xi  , i, nodeLoc)
-                                         *eval_LagrangePoly1D(eta , j, nodeLoc)
-                                         *eval_LagrangePoly1D(zeta, k, nodeLoc);
+        mappingCoefs[ptIdx, nodeIdx] = eval_LagrangePoly1D(xi  , i, nodeLoc)
+                                      *eval_LagrangePoly1D(eta , j, nodeLoc)
+                                      *eval_LagrangePoly1D(zeta, k, nodeLoc);
       }
     }
 
@@ -334,9 +342,9 @@ module Mapping
   proc mapping_pris_edge(elemType : int, interpOrder : int) : [] real {}
   proc mapping_hexa_edge(elemType : int, interpOrder : int) : [] real {}
 
-  //////////////////////////////
-  //  Build SP map for elem   //
-  //////////////////////////////
+  //////////////////////////////////////////////////////////
+  //  Build SP map for elem                               //
+  //////////////////////////////////////////////////////////
 
   /*
    Calculate mapping matrix for the interpolation points is a line element
@@ -406,7 +414,7 @@ module Mapping
     var elemDegree   : int = elem_degree(elemType);
 
     // Get the mesh element and interpolation nodes coordinates/distribution
-    var nodeLoc : [1..elemDegree+1]   real = nodes_uniform_lobatto(elemDegree+1);
+    var nodeLoc : [1..elemDegree+1]  real = nodes_uniform_lobatto(elemDegree+1);
     var spLoc   : [1..interpOrder+1] real = nodes_legendre_gauss(interpOrder+1);
 
     // Get the node ordering for this element type
@@ -416,20 +424,20 @@ module Mapping
     for ptIdx in 1..interpPtCnt
     {
       // Computational coordinate of the SP spIdx
-      var xi  : real = spLoc[(ptIdx-1)%(interpOrder+1)+1];
-      var eta : real = spLoc[(ptIdx-1)/(interpOrder+1)+1];
+      var xi  : real = spLoc[1 + (ptIdx-1)%(interpOrder+1)];
+      var eta : real = spLoc[1 + (ptIdx-1)/(interpOrder+1)];
 
       for nodeIdx in 1..elemNodeCnt
       {
         // Relative position of the mesh element's node
-        var i : int = (nodeOrder[nodeIdx]-1)%(elemDegree+1)+1;
-        var j : int = (nodeOrder[nodeIdx]-1)/(elemDegree+1)+1;
+        var i : int = 1 + (nodeOrder[nodeIdx]-1)%(elemDegree+1);
+        var j : int = 1 + (nodeOrder[nodeIdx]-1)/(elemDegree+1);
 
-        mappingCoefs[1, ptIdx, nodeIdx] = eval_DLagrangeDx(xi , i, nodeLoc)
+        mappingCoefs[1, ptIdx, nodeIdx] = eval_DLagrangeDx(   xi , i, nodeLoc)
                                          *eval_LagrangePoly1D(eta, j, nodeLoc);
 
         mappingCoefs[2, ptIdx, nodeIdx] = eval_LagrangePoly1D(xi , i, nodeLoc)
-                                         *eval_DLagrangeDx(eta, j, nodeLoc);
+                                         *eval_DLagrangeDx(   eta, j, nodeLoc);
       }
     }
 
@@ -458,7 +466,7 @@ module Mapping
     var elemDegree   : int = elem_degree(elemType);
 
     // Get the mesh element and interpolation nodes coordinates/distribution
-    var nodeLoc : [1..elemDegree+1]   real = nodes_uniform_lobatto(elemDegree+1);
+    var nodeLoc : [1..elemDegree+1]  real = nodes_uniform_lobatto(elemDegree+1);
     var spLoc   : [1..interpOrder+1] real = nodes_legendre_gauss(interpOrder+1);
 
     // Get the node ordering for this element type
@@ -468,29 +476,28 @@ module Mapping
     for ptIdx in 1..interpPtCnt
     {
       // Computational coordinate of the SP spIdx
-      //var rst[i] : real = spLoc[((ptIdx-1)/(interpOrder+1)**(i-1))%(interpOrder+1) + 1];
-      var xi   : real = spLoc[((ptIdx-1)/(interpOrder+1)**0)%(interpOrder+1) + 1];
-      var eta  : real = spLoc[((ptIdx-1)/(interpOrder+1)**1)%(interpOrder+1) + 1];
-      var zeta : real = spLoc[((ptIdx-1)/(interpOrder+1)**2)%(interpOrder+1) + 1];
+      var xi   : real = spLoc[1 + ((ptIdx-1)/(interpOrder+1)**0)%(interpOrder+1)];
+      var eta  : real = spLoc[1 + ((ptIdx-1)/(interpOrder+1)**1)%(interpOrder+1)];
+      var zeta : real = spLoc[1 + ((ptIdx-1)/(interpOrder+1)**2)%(interpOrder+1)];
 
       for nodeIdx in 1..elemNodeCnt
       {
         // Relative position of the mesh element's node
-        var i : int = ((nodeOrder[nodeIdx]-1)/(interpOrder+1)**0)%(elemDegree+1)+1;
-        var j : int = ((nodeOrder[nodeIdx]-1)/(interpOrder+1)**1)%(elemDegree+1)+1;
-        var k : int = ((nodeOrder[nodeIdx]-1)/(interpOrder+1)**2)%(elemDegree+1)+1;
+        var i : int = 1 + ((nodeOrder[nodeIdx]-1)/(interpOrder+1)**0)%(elemDegree+1);
+        var j : int = 1 + ((nodeOrder[nodeIdx]-1)/(interpOrder+1)**1)%(elemDegree+1);
+        var k : int = 1 + ((nodeOrder[nodeIdx]-1)/(interpOrder+1)**2)%(elemDegree+1);
 
-        mappingCoefs[1, ptIdx, nodeIdx] = eval_LagrangePolyDx(xi  , i, nodeLoc)
+        mappingCoefs[1, ptIdx, nodeIdx] = eval_DLagrangeDx(   xi  , i, nodeLoc)
                                          *eval_LagrangePoly1D(eta , j, nodeLoc)
                                          *eval_LagrangePoly1D(zeta, k, nodeLoc);
 
         mappingCoefs[2, ptIdx, nodeIdx] = eval_LagrangePoly1D(xi  , i, nodeLoc)
-                                         *eval_LagrangePolyDx(eta , j, nodeLoc)
+                                         *eval_DLagrangeDx(   eta , j, nodeLoc)
                                          *eval_LagrangePoly1D(zeta, k, nodeLoc);
 
         mappingCoefs[3, ptIdx, nodeIdx] = eval_LagrangePoly1D(xi  , i, nodeLoc)
                                          *eval_LagrangePoly1D(eta , j, nodeLoc)
-                                         *eval_LagrangePolyDx(zeta, k, nodeLoc);
+                                         *eval_DLagrangeDx(   zeta, k, nodeLoc);
       }
     }
 
@@ -509,9 +516,9 @@ module Mapping
   proc mapping_metrics_pris_edge(elemType : int, interpOrder : int) : [] real {}
   proc mapping_metrics_hexa_edge(elemType : int, interpOrder : int) : [] real {}
 
-  //////////////////////////////
-  //  Element nodes ordering  //
-  //////////////////////////////
+  //////////////////////////////////////////////////////////
+  //  Element nodes ordering                              //
+  //////////////////////////////////////////////////////////
 
   proc node_order_elem(elemType : int) : [] int
   {
@@ -536,24 +543,28 @@ module Mapping
       when TYPE_LINE_3 do nodeOrder = node_order_line(elemDegree);
       when TYPE_LINE_4 do nodeOrder = node_order_line(elemDegree);
       when TYPE_LINE_5 do nodeOrder = node_order_line(elemDegree);
-      // Tria
+      // Tria Full
       // Tria Edge, high-order triangle with nodes only at edges
-      // Quad
+      // Quad Full
       when TYPE_QUAD_4  do nodeOrder = node_order_quad(elemDegree);
       when TYPE_QUAD_9  do nodeOrder = node_order_quad(elemDegree);
       when TYPE_QUAD_16 do nodeOrder = node_order_quad(elemDegree);
       when TYPE_QUAD_25 do nodeOrder = node_order_quad(elemDegree);
       // Quad Edge, high-order quadrilateral with nodes only at edges
-      // Tetr
+      // Tetr Full
       // Tetr Face
       // Tetr Edge, high-order tetrahedral with nodes only at edges
-      // Pyra
+      // Pyra Full
       // Pyra Face
       // Pyra Edge, high-order pyramidal with nodes only at edges
-      // Pris
+      // Pris Full
       // Pris Face
       // Pris Edge, high-order prismatic with nodes only at edges
-      // Hexa
+      // Hexa Full
+      when TYPE_HEXA_8   do nodeOrder = node_order_hexa(elemDegree);
+      when TYPE_HEXA_27  do nodeOrder = node_order_hexa(elemDegree);
+      when TYPE_HEXA_64  do nodeOrder = node_order_hexa(elemDegree);
+      when TYPE_HEXA_125 do nodeOrder = node_order_hexa(elemDegree);
       // Hexa Face
       // Hexa Edge, high-order hexahedral with nodes only at edges
       otherwise do writeln("Well, screw node order then...");
@@ -580,6 +591,9 @@ module Mapping
 
   proc node_order_quad(elemDegree : int) : [] int
   {
+    // Provide an array mapping the cell node index
+    //   - From the mesh recursive order
+    //   - To a Cartesian order. IE nodeIdx[i,j,k] = k*n² + j*n¹ + i
     use Mesh;
 
     var nodeCnt   : int = (elemDegree+1)**2;
@@ -637,7 +651,240 @@ module Mapping
   proc node_order_tetr(elemDegree : int) : [] int {}
   proc node_order_pyra(elemDegree : int) : [] int {}
   proc node_order_pris(elemDegree : int) : [] int {}
-  proc node_order_hexa(elemDegree : int) : [] int {}
+
+  proc node_order_hexa(elemDegree : int) : [] int
+  {
+    // Provide an array mapping the cell node index
+    //   - From the native mesh ordering
+    //       - Corner Nodes. Back face first following the same ordering as a 2D face
+    //       - Mid Edge Nodes (Following edge orientation)
+    //       - Mid Face Nodes (Cartesian and following face orientation)
+    //       - Mid Volume Nodes (Cartesian and following volume orientation)
+    //   - To a Cartesian order. IE nodeIdx[n] = k*n² + j*n¹ + i.
+    //     Where [i,j,k] are the relative positions of each node in an [x,y,z] coordinate system
+    use Mesh;
+
+    var nodeCnt   : int = (elemDegree+1)**3;
+    var nodeOrder : [1..nodeCnt] int;
+    var nodeIdx   : int = 0;
+
+    var lo = 1;
+    var hi = elemDegree+1;
+
+    // Fill in corner nodes
+    {
+      // Left, lower, back
+      nodeOrder[1] = (elemDegree+1)**2 * (lo-1)*
+                    +(elemDegree+1)**1 * (lo-1)*
+                    +(elemDegree+1)**0 *  lo;
+
+      // Right, lower, back
+      nodeOrder[2] = (elemDegree+1)**2 * (lo-1)
+                    +(elemDegree+1)**1 * (lo-1)
+                    +(elemDegree+1)**0 *  hi;
+
+      // Right, upper, back
+      nodeOrder[3] = (elemDegree+1)**2 * (lo-1)
+                    +(elemDegree+1)**1 * (hi-1)
+                    +(elemDegree+1)**0 *  hi;
+
+      // Left, upper, back
+      nodeOrder[4] = (elemDegree+1)**2 * (lo-1)
+                    +(elemDegree+1)**1 * (hi-1)
+                    +(elemDegree+1)**0 *  lo;
+
+      // Left, lower, front
+      nodeOrder[5] = (elemDegree+1)**2 * (hi-1)
+                    +(elemDegree+1)**1 * (lo-1)
+                    +(elemDegree+1)**0 *  lo;
+
+      // Right, lower, front
+      nodeOrder[6] = (elemDegree+1)**2 * (hi-1)
+                    +(elemDegree+1)**1 * (lo-1)
+                    +(elemDegree+1)**0 *  hi;
+
+      // Right, upper, front
+      nodeOrder[7] = (elemDegree+1)**2 * (hi-1)
+                    +(elemDegree+1)**1 * (hi-1)
+                    +(elemDegree+1)**0 *  hi;
+
+      // Left, upper, front
+      nodeOrder[8] = (elemDegree+1)**2 * (hi-1)
+                    +(elemDegree+1)**1 * (hi-1)
+                    +(elemDegree+1)**0 *  lo;
+
+      // Update idx counter to end of the corner nodes
+      nodeIdx = 8;
+    }
+
+    // Is this a high-order element?
+    if elemDegree > 1
+    {
+      // Then we have a few more nodes to add
+
+      // Mid edge nodes
+      {
+        for k in lo+1..hi-1
+        {
+          nodeIdx += 1;
+
+          // Back edges (z=zMin). Oriented counter clockwise
+          {
+            // Bottom edge
+            nodeOrder[nodeIdx+0*(elemDegree-1)] = (elemDegree+1)**2 * (lo-1)
+                                                 +(elemDegree+1)**1 * (lo-1)
+                                                 +(elemDegree+1)**0 *   k;
+            // Right edge
+            nodeOrder[nodeIdx+1*(elemDegree-1)] = (elemDegree+1)**2 * (lo-1)
+                                                 +(elemDegree+1)**1 * ( k-1)
+                                                 +(elemDegree+1)**0 *  hi;
+            // Top edge
+            nodeOrder[nodeIdx+2*(elemDegree-1)] = (elemDegree+1)**2 * (lo-1)
+                                                 +(elemDegree+1)**1 * (hi-1)
+                                                 +(elemDegree+1)**0 * ((elemDegree+1)-(k-1));
+            // Left edge
+            nodeOrder[nodeIdx+3*(elemDegree-1)] = (elemDegree+1)**2 * (lo-1)
+                                                 +(elemDegree+1)**1 * ((elemDegree+1)-(k-1)-1)
+                                                 +(elemDegree+1)**0 *  lo;
+          }
+
+          // Z edges. Oriented back to front
+          {
+            // Bottom-Left edge
+            nodeOrder[nodeIdx+4*(elemDegree-1)] = (elemDegree+1)**2 * ( k-1)
+                                                 +(elemDegree+1)**1 * (lo-1)
+                                                 +(elemDegree+1)**0 *  lo;
+            // Bottom-Right edge
+            nodeOrder[nodeIdx+5*(elemDegree-1)] = (elemDegree+1)**2 * ( k-1)
+                                                 +(elemDegree+1)**1 * (lo-1)
+                                                 +(elemDegree+1)**0 *  hi;
+            // Top-Right edge
+            nodeOrder[nodeIdx+6*(elemDegree-1)] = (elemDegree+1)**2 * ( k-1)
+                                                 +(elemDegree+1)**1 * (hi-1)
+                                                 +(elemDegree+1)**0 *  hi;
+            // Top-Left edge
+            nodeOrder[nodeIdx+7*(elemDegree-1)] = (elemDegree+1)**2 * ( k-1)
+                                                 +(elemDegree+1)**1 * (hi-1)
+                                                 +(elemDegree+1)**0 *  lo;
+          }
+
+          // Front edges (z=zMax). Oriented counter clockwise
+          {
+            // Bottom edge
+            nodeOrder[nodeIdx+8*(elemDegree-1)] = (elemDegree+1)**2 * (hi-1)
+                                                 +(elemDegree+1)**1 * (lo-1)
+                                                 +(elemDegree+1)**0 *   k;
+            // Right edge
+            nodeOrder[nodeIdx+9*(elemDegree-1)] = (elemDegree+1)**2 * (hi-1)
+                                                 +(elemDegree+1)**1 * ( k-1)
+                                                 +(elemDegree+1)**0 *  hi;
+            // Top edge
+            nodeOrder[nodeIdx+10*(elemDegree-1)] = (elemDegree+1)**2 * (hi-1)
+                                                  +(elemDegree+1)**1 * (hi-1)
+                                                  +(elemDegree+1)**0 * ((elemDegree+1)-(k-1));
+            // Left edge
+            nodeOrder[nodeIdx+11*(elemDegree-1)] = (elemDegree+1)**2 * (hi-1)
+                                                  +(elemDegree+1)**1 * ((elemDegree+1)-(k-1)-1)
+                                                  +(elemDegree+1)**0 *  lo;
+          }
+        }
+
+        // Update idx counter to end of edge nodes
+        nodeIdx += 11*(elemDegree-1);
+      }
+
+      // Mid Face nodes
+      {
+        // Back   face (face 1)
+        {
+          var z = lo;
+          for x in lo+1..hi-1 do
+            for y in lo+1..hi-1
+            {
+              nodeIdx += 1;
+              nodeOrder[nodeIdx] = (elemDegree+1)**2 * z
+                                  +(elemDegree+1)**1 * y
+                                  +(elemDegree+1)**0 * x;
+            }
+        }
+        // Bottom face (face 2)
+        {
+          var y = lo;
+          for z in lo+1..hi-1 do
+            for x in lo+1..hi-1
+            {
+              nodeIdx += 1;
+              nodeOrder[nodeIdx] = (elemDegree+1)**2 * z
+                                  +(elemDegree+1)**1 * y
+                                  +(elemDegree+1)**0 * x;
+            }
+        }
+        // Left   face (face 3)
+        {
+          var x = lo;
+          for y in lo+1..hi-1 do
+            for z in lo+1..hi-1
+            {
+              nodeIdx += 1;
+              nodeOrder[nodeIdx] = (elemDegree+1)**2 * z
+                                  +(elemDegree+1)**1 * y
+                                  +(elemDegree+1)**0 * x;
+            }
+        }
+        // Front  face (face 4)
+        {
+          var z = hi;
+          for y in lo+1..hi-1 do
+            for x in lo+1..hi-1
+            {
+              nodeIdx += 1;
+              nodeOrder[nodeIdx] = (elemDegree+1)**2 * z
+                                  +(elemDegree+1)**1 * y
+                                  +(elemDegree+1)**0 * x;
+            }
+        }
+        // Top    face (face 5)
+        {
+          var y = hi;
+          for x in lo+1..hi-1 do
+            for z in lo+1..hi-1
+            {
+              nodeIdx += 1;
+              nodeOrder[nodeIdx] = (elemDegree+1)**2 * z
+                                  +(elemDegree+1)**1 * y
+                                  +(elemDegree+1)**0 * x;
+            }
+        }
+        // Right  face (face 6)
+        {
+          var x = hi;
+          for z in lo+1..hi-1 do
+            for y in lo+1..hi-1
+            {
+              nodeIdx += 1;
+              nodeOrder[nodeIdx] = (elemDegree+1)**2 * z
+                                  +(elemDegree+1)**1 * y
+                                  +(elemDegree+1)**0 * x;
+            }
+        }
+      }
+
+      // Mid Volume nodes
+      {
+        for z in lo+1..hi-1 do
+          for y in lo+1..hi-1 do
+            for x in lo+1..hi-1
+            {
+              nodeIdx += 1;
+              nodeOrder[nodeIdx] = (elemDegree+1)**2 * z
+                                  +(elemDegree+1)**1 * y
+                                  +(elemDegree+1)**0 * x;
+            }
+      }
+    }
+
+    return nodeOrder;
+  }
 
   proc node_order_tetr_face(elemDegree : int) : [] int {}
   proc node_order_pyra_face(elemDegree : int) : [] int {}
@@ -650,6 +897,10 @@ module Mapping
   proc node_order_pyra_edge(elemDegree : int) : [] int {}
   proc node_order_pris_edge(elemDegree : int) : [] int {}
   proc node_order_hexa_edge(elemDegree : int) : [] int {}
+
+  //////////////////////////////////////////////////////////
+  //  Module Test                                         //
+  //////////////////////////////////////////////////////////
 
   proc main()
   {
